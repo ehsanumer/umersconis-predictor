@@ -55,7 +55,7 @@ export async function getUsernameForUser(userId, email) {
 }
 
 export function onAuthChange(callback) {
-  return supabase.auth.onAuthStateChange((_event, session) => callback(session))
+  return supabase.auth.onAuthStateChange((event, session) => callback(event, session))
 }
 
 // ─── GAMES INDEX ──────────────────────────────────────────────────────────────
@@ -109,7 +109,19 @@ export async function getUserGames(username) {
 }
 
 export async function addPlayerToGame(gameId, username) {
-  await supabase.from('game_players').upsert({ game_id: gameId, username }).catch(() => {})
+  try { await supabase.from('game_players').upsert({ game_id: gameId, username }) } catch {}
+}
+
+export async function resetPasswordForEmail(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  })
+  if (error) throw error
+}
+
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
 }
 
 // ─── GAME STATE ───────────────────────────────────────────────────────────────

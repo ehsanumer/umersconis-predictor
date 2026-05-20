@@ -3,7 +3,7 @@ import {
   supabase, signUp, signIn, signOut, getSession, onAuthChange,
   getGamesIndex, createGameInDB, findGameByJoinCode, getUserGames,
   loadGameState, saveGameState, subscribeToGame, unsubscribeFromGame,
-  getUsernameForUser, addPlayerToGame,
+  getUsernameForUser, addPlayerToGame, resetPasswordForEmail, updatePassword,
 } from "./lib/supabase.js";
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
@@ -745,7 +745,10 @@ function LoginScreen({ onLogin }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function switchMode(m) { setMode(m); setError(""); setInfo(""); }
 
   async function handleLogin() {
     if (!email.trim() || !password) { setError("Please enter your email and password."); return; }
@@ -769,11 +772,22 @@ function LoginScreen({ onLogin }) {
     setLoading(true); setError("");
     try {
       await signUp(email.trim(), password, username.trim());
-      // Auto sign in after registration
       const data = await signIn(email.trim(), password);
       onLogin({ username: username.trim(), email: email.trim(), userId: data.user.id });
     } catch(e) {
       setError(e.message || "Registration failed.");
+    }
+    setLoading(false);
+  }
+
+  async function handleForgotPassword() {
+    if (!email.trim()) { setError("Please enter your email address."); return; }
+    setLoading(true); setError(""); setInfo("");
+    try {
+      await resetPasswordForEmail(email.trim());
+      setInfo("Password reset email sent — check your inbox.");
+    } catch(e) {
+      setError(e.message || "Failed to send reset email.");
     }
     setLoading(false);
   }
@@ -783,25 +797,31 @@ function LoginScreen({ onLogin }) {
       <div className="login-card">
         <div className="login-logo">Umer<span>sconi</span></div>
         <div className="login-tagline">The Beautiful Game. The Beautiful Corruption.</div>
-        <div style={{display:"flex",marginBottom:24,borderRadius:4,overflow:"hidden",border:"1px solid rgba(201,168,76,0.3)"}}>
-          {["login","register"].map(m=>(
-            <button key={m} className={`login-tab ${mode===m?"active":""}`} onClick={()=>{setMode(m);setError("");}}>
-              {m==="login"?"Sign In":"Register"}
-            </button>
-          ))}
-        </div>
+        {mode !== "forgot" && (
+          <div style={{display:"flex",marginBottom:24,borderRadius:4,overflow:"hidden",border:"1px solid rgba(201,168,76,0.3)"}}>
+            {["login","register"].map(m=>(
+              <button key={m} className={`login-tab ${mode===m?"active":""}`} onClick={()=>switchMode(m)}>
+                {m==="login"?"Sign In":"Register"}
+              </button>
+            ))}
+          </div>
+        )}
         {error && <div className="login-error">⚠ {error}</div>}
+        {info && <div style={{background:"rgba(201,168,76,0.15)",border:"1px solid rgba(201,168,76,0.4)",borderRadius:6,padding:"10px 14px",marginBottom:16,color:"var(--gold)",fontSize:14}}>✓ {info}</div>}
         {mode==="login" ? (
           <>
             <div className="login-field"><label className="login-label">Email</label>
               <input className="login-input" type="email" placeholder="your@email.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} /></div>
             <div className="login-field"><label className="login-label">Password</label>
               <input className="login-input" type="password" placeholder="••••••••" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()} /></div>
+            <div style={{textAlign:"right",marginBottom:12,marginTop:-4}}>
+              <button onClick={()=>switchMode("forgot")} style={{background:"none",border:"none",color:"var(--silver)",fontSize:13,cursor:"pointer",textDecoration:"underline",padding:0}}>Forgot password?</button>
+            </div>
             <button className="login-btn" onClick={handleLogin} disabled={loading}>{loading?"Checking...":"Enter the Arena"}</button>
             <hr className="login-divider"/>
-            <div className="login-switch">No account? <button onClick={()=>{setMode("register");setError("");}}>Register here</button></div>
+            <div className="login-switch">No account? <button onClick={()=>switchMode("register")}>Register here</button></div>
           </>
-        ) : (
+        ) : mode==="register" ? (
           <>
             <div className="login-field"><label className="login-label">Username (shown to other players)</label>
               <input className="login-input" placeholder="e.g. Umer" value={username} onChange={e=>setUsername(e.target.value)} /></div>
@@ -813,7 +833,62 @@ function LoginScreen({ onLogin }) {
               <input className="login-input" type="password" placeholder="Repeat password" value={confirm} onChange={e=>setConfirm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleRegister()} /></div>
             <button className="login-btn" onClick={handleRegister} disabled={loading}>{loading?"Setting up...":"Create Account"}</button>
             <hr className="login-divider"/>
-            <div className="login-switch">Already registered? <button onClick={()=>{setMode("login");setError("");}}>Sign in</button></div>
+            <div className="login-switch">Already registered? <button onClick={()=>switchMode("login")}>Sign in</button></div>
+          </>
+        ) : (
+          <>
+            <div style={{color:"var(--cream)",fontFamily:"Playfair Display,serif",fontSize:18,fontStyle:"italic",marginBottom:16}}>Reset your password</div>
+            <div className="login-field"><label className="login-label">Email address</label>
+              <input className="login-input" type="email" placeholder="your@email.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleForgotPassword()} /></div>
+            <button className="login-btn" onClick={handleForgotPassword} disabled={loading}>{loading?"Sending...":"Send Reset Email"}</button>
+            <hr className="login-divider"/>
+            <div className="login-switch"><button onClick={()=>switchMode("login")}>← Back to sign in</button></div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResetPasswordScreen({ onDone }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function handleReset() {
+    if (!password) { setError("Please enter a new password."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (password !== confirm) { setError("Passwords don't match."); return; }
+    setLoading(true); setError("");
+    try {
+      await updatePassword(password);
+      setDone(true);
+    } catch(e) {
+      setError(e.message || "Failed to update password.");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="login-screen">
+      <div className="login-card">
+        <div className="login-logo">Umer<span>sconi</span></div>
+        <div style={{color:"var(--cream)",fontFamily:"Playfair Display,serif",fontSize:18,fontStyle:"italic",marginBottom:24}}>Set a new password</div>
+        {done ? (
+          <>
+            <div style={{background:"rgba(201,168,76,0.15)",border:"1px solid rgba(201,168,76,0.4)",borderRadius:6,padding:"12px 16px",color:"var(--gold)",marginBottom:20}}>✓ Password updated successfully.</div>
+            <button className="login-btn" onClick={onDone}>Go to my games</button>
+          </>
+        ) : (
+          <>
+            {error && <div className="login-error">⚠ {error}</div>}
+            <div className="login-field"><label className="login-label">New Password</label>
+              <input className="login-input" type="password" placeholder="Min. 6 characters" value={password} onChange={e=>setPassword(e.target.value)} /></div>
+            <div className="login-field"><label className="login-label">Confirm New Password</label>
+              <input className="login-input" type="password" placeholder="Repeat password" value={confirm} onChange={e=>setConfirm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleReset()} /></div>
+            <button className="login-btn" onClick={handleReset} disabled={loading}>{loading?"Updating...":"Set New Password"}</button>
           </>
         )}
       </div>
@@ -4001,9 +4076,11 @@ export default function App() {
       }
     }).catch(() => setAppState("login"));
 
-    // Listen for auth changes (logout from another tab etc.)
-    const { data: { subscription } } = onAuthChange(s => {
-      if (!s) {
+    // Listen for auth changes (logout from another tab, password recovery, etc.)
+    const { data: { subscription } } = onAuthChange((event, s) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setAppState("reset-password");
+      } else if (!s) {
         setSession(null);
         setGame(null);
         setActiveGameId(null);
@@ -4090,6 +4167,7 @@ export default function App() {
   );
 
   if (appState==="login") return <><GlobalStyles/><LoginScreen onLogin={handleLogin}/></>;
+  if (appState==="reset-password") return <><GlobalStyles/><ResetPasswordScreen onDone={()=>setAppState("game-select")}/></>;
   if (appState==="game-select") return session ? <><GlobalStyles/><GameSelectScreen session={session} onSelectGame={handleSelectGame} onLogout={handleLogout}/></> : <><GlobalStyles/><LoginScreen onLogin={handleLogin}/></>;
 
   // In-game
