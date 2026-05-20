@@ -101,8 +101,8 @@ const GlobalStyles = () => (
     .method-btn:hover { border-color: var(--pitch); color: var(--pitch); }
     .method-btn.selected-aet { background: #e8f4e8; border-color: #27ae60; color: #1e8449; }
     .method-btn.selected-pens { background: #f0e8f8; border-color: #8e44ad; color: #6c3483; }
-    .score-inputs { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .score-team { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 700; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .score-inputs { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .score-team { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 700; flex: 1; min-width: 0; word-break: break-word; }
     .score-num { width: 52px; text-align: center; font-family: 'Bebas Neue', sans-serif; font-size: 22px; padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; background: white; -moz-appearance: textfield; }
     .score-num::-webkit-outer-spin-button, .score-num::-webkit-inner-spin-button { -webkit-appearance: none; }
     .score-num:focus { outline: none; border-color: var(--gold); }
@@ -214,7 +214,7 @@ const GlobalStyles = () => (
       .hero-stat-num { font-size: 26px; }
       .section-header { flex-direction: column; align-items: flex-start; gap: 4px; }
       .score-inputs { gap: 5px; }
-      .score-team { max-width: 70px; font-size: 11px; }
+      .score-team { font-size: 11px; }
       .score-num { width: 44px; font-size: 18px; }
       .match-teams { font-size: 14px; }
       .match-card { margin-bottom: 8px; }
@@ -236,7 +236,7 @@ const GlobalStyles = () => (
       .nav-btn { padding: 6px 6px; font-size: 10px; }
       .hero-stats { gap: 10px; }
       .hero-stat-num { font-size: 22px; }
-      .score-team { max-width: 55px; font-size: 10px; }
+      .score-team { font-size: 10px; }
     }
   `}</style>
 );
@@ -1287,7 +1287,7 @@ function MatchesView({ game, dispatch, session }) {
                               {isKO?"Enter score after 90 mins. Select AET or Penalties if needed.":"Enter score — result is derived automatically."}
                             </div>
                             <div className="score-inputs">
-                              <span className="score-team">{homeTeam}</span>
+                              <span className="score-team" style={{textAlign:"right"}}>{homeTeam}</span>
                               <input type="number" className="score-num" min="0" max="99" placeholder="0"
                                 value={draft.scoreHome??""}
                                 onChange={e=>{setErrors(p=>{const n={...p};delete n[match.id];return n;});setSubmitting(p=>({...p,[match.id]:{...(p[match.id]||{}),scoreHome:e.target.value}}));}} />
@@ -1295,7 +1295,7 @@ function MatchesView({ game, dispatch, session }) {
                               <input type="number" className="score-num" min="0" max="99" placeholder="0"
                                 value={draft.scoreAway??""}
                                 onChange={e=>{setErrors(p=>{const n={...p};delete n[match.id];return n;});setSubmitting(p=>({...p,[match.id]:{...(p[match.id]||{}),scoreAway:e.target.value}}));}} />
-                              <span className="score-team" style={{textAlign:"right"}}>{awayTeam}</span>
+                              <span className="score-team">{awayTeam}</span>
                             </div>
                             {isKO&&(
                               <div>
