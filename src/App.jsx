@@ -32,8 +32,8 @@ const GlobalStyles = () => (
         repeating-linear-gradient(0deg,   transparent 0, transparent 9px, rgba(255,255,255,0.008) 9px, rgba(255,255,255,0.008) 10px);
     }
 
-    /* STRIPE */
-    .app-stripe { height: 22px; background: repeating-linear-gradient(90deg, #CC1020 0 33.33%, #fff 33.33% 66.66%, #060F22 66.66% 100%); box-shadow: 0 3px 16px rgba(204,16,32,0.7); }
+    /* STRIPE — thin repeating flag stripes, not a loading bar */
+    .app-stripe { height: 14px; background: repeating-linear-gradient(90deg, #CC1020 0px 22px, #fff 22px 26px, #060F22 26px 48px, #fff 48px 52px); box-shadow: 0 3px 14px rgba(204,16,32,0.6); }
 
     /* HEADER */
     .header { background: rgba(6,15,34,0.97); border-bottom: 3px solid var(--red); position: sticky; top: 0; z-index: 100; }
@@ -221,7 +221,26 @@ const GlobalStyles = () => (
     .pred-input:focus { outline: none; border-color: var(--red); }
 
     /* LOGIN */
-    .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 60% 40%, rgba(204,16,32,0.06) 0%, transparent 60%), #0E1E38; padding: 24px; background-image: repeating-linear-gradient(135deg, transparent 0, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px), repeating-linear-gradient(45deg, transparent 0, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px); }
+    .login-screen {
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px; position: relative; overflow: hidden;
+      background-color: #1B3358;
+      background-image:
+        repeating-linear-gradient(135deg, transparent 0, transparent 2px, rgba(0,0,0,0.16) 2px, rgba(0,0,0,0.16) 4px),
+        repeating-linear-gradient(45deg, transparent 0, transparent 2px, rgba(0,0,0,0.09) 2px, rgba(0,0,0,0.09) 4px),
+        radial-gradient(ellipse at 80% 20%, rgba(204,16,32,0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 20% 80%, rgba(255,255,255,0.04) 0%, transparent 40%);
+    }
+    /* Big diagonal stars in login background, same angle as the kit */
+    .login-screen::before {
+      content: '★'; position: absolute; font-size: 55vw; top: 50%; right: -10%; transform: translateY(-50%) rotate(-36deg);
+      color: rgba(204,16,32,0.07); pointer-events: none; line-height: 1; z-index: 0;
+    }
+    .login-screen::after {
+      content: '★'; position: absolute; font-size: 30vw; top: 10%; left: -8%; transform: rotate(-36deg);
+      color: rgba(255,255,255,0.04); pointer-events: none; line-height: 1; z-index: 0;
+    }
+    .login-card { background: #060F22; border: 2px solid var(--red); border-radius: 6px; padding: 40px 36px; width: 100%; max-width: 420px; text-align: center; box-shadow: 0 0 60px rgba(204,16,32,0.3), 0 20px 60px rgba(0,0,0,0.6); position: relative; z-index: 1; }
     .login-card { background: #060F22; border: 2px solid var(--red); border-radius: 6px; padding: 40px 36px; width: 100%; max-width: 420px; text-align: center; box-shadow: 0 0 40px rgba(204,16,32,0.25); }
     .login-logo { font-family: 'Anton', sans-serif; font-size: 48px; letter-spacing: 4px; color: var(--cream); line-height: 1; }
     .login-logo span { color: var(--red); }
@@ -242,7 +261,25 @@ const GlobalStyles = () => (
     .login-switch button { background: none; border: none; color: var(--red); cursor: pointer; font-size: 13px; text-decoration: underline; }
 
     /* GAME SELECT */
-    .game-select-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0E1E38; padding: 24px; background-image: repeating-linear-gradient(135deg, transparent 0, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px), repeating-linear-gradient(45deg, transparent 0, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px); }
+    .game-select-screen {
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px 24px 40px; position: relative; overflow: hidden;
+      background-color: #1B3358;
+      background-image:
+        repeating-linear-gradient(135deg, transparent 0, transparent 2px, rgba(0,0,0,0.16) 2px, rgba(0,0,0,0.16) 4px),
+        repeating-linear-gradient(45deg, transparent 0, transparent 2px, rgba(0,0,0,0.09) 2px, rgba(0,0,0,0.09) 4px),
+        radial-gradient(ellipse at 85% 15%, rgba(204,16,32,0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 15% 85%, rgba(255,255,255,0.04) 0%, transparent 40%);
+    }
+    .game-select-screen::before {
+      content: '★'; position: absolute; font-size: 60vw; top: 50%; right: -12%; transform: translateY(-50%) rotate(-36deg);
+      color: rgba(204,16,32,0.07); pointer-events: none; line-height: 1; z-index: 0;
+    }
+    .game-select-screen::after {
+      content: '★'; position: absolute; font-size: 28vw; bottom: 5%; left: -6%; transform: rotate(-36deg);
+      color: rgba(255,255,255,0.04); pointer-events: none; line-height: 1; z-index: 0;
+    }
+    .game-select-screen > * { position: relative; z-index: 1; }
     .game-card { background: #142846; border: 1px solid rgba(204,16,32,0.2); border-radius: 4px; padding: 18px 20px; cursor: pointer; transition: all 0.2s; text-align: left; width: 100%; border-left: 4px solid transparent; }
     .game-card:hover { border-color: rgba(204,16,32,0.4); border-left-color: var(--red); transform: translateX(3px); }
     .game-card-name { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 18px; color: var(--cream); }
@@ -275,9 +312,12 @@ const GlobalStyles = () => (
       .page { padding: 16px 12px; }
       .hero { padding: 36px 16px 28px; }
       .hero-title { font-size: 32px; }
-      .hero-stats { gap: 0; }
-      .hero-stat { padding: 0 16px; }
+      .hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+      .hero-stat { padding: 10px 16px; border-left: none !important; border-bottom: 1px solid rgba(255,255,255,0.06); }
+      .hero-stat:nth-child(even) { border-left: 1px solid rgba(255,255,255,0.08) !important; }
+      .hero-stat:nth-child(3), .hero-stat:nth-child(4) { border-bottom: none; }
       .hero-stat-num { font-size: 32px; }
+      .lb-row.header-row > div:nth-child(n+4) { display: none; }
       .section-header { flex-direction: row; align-items: center; gap: 0; }
       .score-inputs { gap: 5px; }
       .score-team { font-size: 11px; }
@@ -863,11 +903,12 @@ function LoginScreen({ onLogin }) {
 
   return (
     <div className="login-screen">
+      <div style={{position:"absolute",top:0,left:0,right:0,height:14,background:"repeating-linear-gradient(90deg,#CC1020 0px 22px,#fff 22px 26px,#060F22 26px 48px,#fff 48px 52px)",boxShadow:"0 3px 14px rgba(204,16,32,0.6)",zIndex:2}}/>
       <div className="login-card">
         <div className="login-logo">Umer<span>sconi</span></div>
         <div className="login-tagline">The Beautiful Game. The Beautiful Corruption.</div>
         {mode !== "forgot" && (
-          <div style={{display:"flex",marginBottom:24,borderRadius:4,overflow:"hidden",border:"1px solid rgba(201,168,76,0.3)"}}>
+          <div style={{display:"flex",marginBottom:24,borderRadius:4,overflow:"hidden",border:"1px solid rgba(204,16,32,0.3)"}}>
             {["login","register"].map(m=>(
               <button key={m} className={`login-tab ${mode===m?"active":""}`} onClick={()=>switchMode(m)}>
                 {m==="login"?"Sign In":"Register"}
@@ -876,7 +917,7 @@ function LoginScreen({ onLogin }) {
           </div>
         )}
         {error && <div className="login-error">⚠ {error}</div>}
-        {info && <div style={{background:"rgba(201,168,76,0.15)",border:"1px solid rgba(201,168,76,0.4)",borderRadius:6,padding:"10px 14px",marginBottom:16,color:"var(--gold)",fontSize:14}}>✓ {info}</div>}
+        {info && <div style={{background:"rgba(204,16,32,0.12)",border:"1px solid rgba(204,16,32,0.4)",borderRadius:6,padding:"10px 14px",marginBottom:16,color:"#ff9aaa",fontSize:14}}>✓ {info}</div>}
         {mode==="login" ? (
           <>
             <div className="login-field"><label className="login-label">Email</label>
@@ -906,7 +947,7 @@ function LoginScreen({ onLogin }) {
           </>
         ) : (
           <>
-            <div style={{color:"var(--cream)",fontFamily:"Playfair Display,serif",fontSize:18,fontStyle:"italic",marginBottom:16}}>Reset your password</div>
+            <div style={{color:"var(--cream)",fontFamily:"Anton,sans-serif",fontSize:22,letterSpacing:2,marginBottom:16}}>RESET YOUR PASSWORD</div>
             <div className="login-field"><label className="login-label">Email address</label>
               <input className="login-input" type="email" placeholder="your@email.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleForgotPassword()} /></div>
             <button className="login-btn" onClick={handleForgotPassword} disabled={loading}>{loading?"Sending...":"Send Reset Email"}</button>
@@ -1025,7 +1066,7 @@ function GameSelectScreen({ session, onSelectGame, onLogout }) {
 
   if (loading) return (
     <div className="game-select-screen">
-      <div style={{color:"var(--gold)",fontFamily:"Bebas Neue",fontSize:36,letterSpacing:4}}>Loading…</div>
+      <div style={{color:"var(--red)",fontFamily:"Anton,sans-serif",fontSize:36,letterSpacing:4}}>★ LOADING… ★</div>
     </div>
   );
 
@@ -1033,13 +1074,14 @@ function GameSelectScreen({ session, onSelectGame, onLogout }) {
 
   return (
     <div className="game-select-screen">
+      <div style={{position:"absolute",top:0,left:0,right:0,height:14,background:"repeating-linear-gradient(90deg,#CC1020 0px 22px,#fff 22px 26px,#060F22 26px 48px,#fff 48px 52px)",boxShadow:"0 3px 14px rgba(204,16,32,0.6)",zIndex:2}}/>
       <div style={{width:"100%",maxWidth:520}}>
         <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{fontFamily:"Bebas Neue",fontSize:52,letterSpacing:4,color:"var(--gold)",lineHeight:1}}>Umer<span style={{color:"var(--cream)"}}>sconi</span></div>
-          <div style={{fontStyle:"italic",color:"var(--silver)",marginTop:6}}>Welcome, <strong style={{color:"var(--cream)",fontFamily:"Playfair Display,serif"}}>{session.username}</strong></div>
+          <div style={{fontFamily:"Anton,sans-serif",fontSize:52,letterSpacing:4,color:"var(--cream)",lineHeight:1}}>UMER<span style={{color:"var(--red)"}}>SCONI</span></div>
+          <div style={{fontFamily:"Oswald,sans-serif",fontWeight:600,color:"var(--silver)",marginTop:8,letterSpacing:2,fontSize:13}}>WELCOME, <span style={{color:"var(--cream)"}}>{session.username}</span></div>
         </div>
 
-        <div style={{display:"flex",marginBottom:20,borderRadius:4,overflow:"hidden",border:"1px solid rgba(201,168,76,0.3)"}}>
+        <div style={{display:"flex",marginBottom:20,borderRadius:4,overflow:"hidden",border:"1px solid rgba(204,16,32,0.3)"}}>
           {[["games","My Games"],["create","Create Game"],["join","Join Game"]].map(([t,l])=>(
             <button key={t} className={`login-tab ${tab===t?"active":""}`} style={{flex:1,fontSize:12}} onClick={()=>{setTab(t);setError("");}}>
               {l}
@@ -1052,7 +1094,7 @@ function GameSelectScreen({ session, onSelectGame, onLogout }) {
         {tab==="games"&&(
           <div>
             {myGames.length===0 ? (
-              <div className="empty" style={{background:"var(--card-bg)",borderRadius:6,padding:32}}>
+              <div className="empty" style={{background:"#0E1E38",borderRadius:4,padding:32,border:"1px solid rgba(204,16,32,0.2)"}}>
                 You're not in any games yet.<br/>Create one or join with a code.
               </div>
             ) : (
@@ -1111,7 +1153,7 @@ function Leaderboard({ game }) {
 
   return (
     <div>
-      <div style={{height:22,background:"repeating-linear-gradient(90deg,#CC1020 0 33.33%,#fff 33.33% 66.66%,#060F22 66.66% 100%)",boxShadow:"0 3px 16px rgba(204,16,32,0.7)"}}/>
+      <div style={{height:14,background:"repeating-linear-gradient(90deg,#CC1020 0px 22px,#fff 22px 26px,#060F22 26px 48px,#fff 48px 52px)",boxShadow:"0 3px 14px rgba(204,16,32,0.6)"}}/>
       <div className="hero">
         {/* V-neck collar — defining detail of the 1994 home kit */}
         <div className="hero-vneck"/>
