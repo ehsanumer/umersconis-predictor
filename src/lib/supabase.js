@@ -16,11 +16,9 @@ export async function signUp(email, password, username) {
   if (error) throw error
   // Also store username in a profile row for reliable retrieval
   if (data.user) {
-    await supabase.from('profiles').upsert({
-      id: data.user.id,
-      username,
-      email,
-    }).catch(() => {}) // non-fatal
+    try {
+      await supabase.from('profiles').upsert({ id: data.user.id, username, email })
+    } catch(e) { /* non-fatal */ }
   }
   return data
 }
