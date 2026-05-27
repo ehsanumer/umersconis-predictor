@@ -866,7 +866,7 @@ function gameReducer(state, action) {
 }
 
 // ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }) {
+function LoginScreen({ onLogin, pendingJoinCode }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -926,6 +926,11 @@ function LoginScreen({ onLogin }) {
       <div className="login-card">
         <div className="login-logo">Umer<span>sconi</span></div>
         <div className="login-tagline">The Beautiful Game. The Beautiful Corruption.</div>
+        {pendingJoinCode&&(
+          <div style={{background:"rgba(204,16,32,0.12)",border:"1px solid rgba(204,16,32,0.4)",borderRadius:4,padding:"10px 14px",marginBottom:16,fontSize:13,color:"#ff9aaa",textAlign:"left"}}>
+            ★ You've been invited to join a game. Sign in or register to continue — you'll be added automatically.
+          </div>
+        )}
         {mode !== "forgot" && (
           <div style={{display:"flex",marginBottom:24,borderRadius:4,overflow:"hidden",border:"1px solid rgba(204,16,32,0.3)"}}>
             {["login","register"].map(m=>(
@@ -1004,10 +1009,10 @@ function ResetPasswordScreen({ onDone }) {
     <div className="login-screen">
       <div className="login-card">
         <div className="login-logo">Umer<span>sconi</span></div>
-        <div style={{color:"var(--cream)",fontFamily:"Playfair Display,serif",fontSize:18,fontStyle:"italic",marginBottom:24}}>Set a new password</div>
+        <div style={{color:"var(--cream)",fontFamily:"Oswald,sans-serif",fontSize:18,fontStyle:"italic",marginBottom:24}}>Set a new password</div>
         {done ? (
           <>
-            <div style={{background:"rgba(201,168,76,0.15)",border:"1px solid rgba(201,168,76,0.4)",borderRadius:6,padding:"12px 16px",color:"var(--gold)",marginBottom:20}}>✓ Password updated successfully.</div>
+            <div style={{background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:6,padding:"12px 16px",color:"#4ade80",marginBottom:20}}>✓ Password updated successfully.</div>
             <button className="login-btn" onClick={onDone}>Go to my games</button>
           </>
         ) : (
@@ -1026,17 +1031,27 @@ function ResetPasswordScreen({ onDone }) {
 }
 
 // ─── GAME SELECT SCREEN ───────────────────────────────────────────────────────
-function GameSelectScreen({ session, onSelectGame, onLogout, onSuperAdmin }) {
+function GameSelectScreen({ session, onSelectGame, onLogout, onSuperAdmin, pendingJoinCode, onClearPendingCode }) {
   const [games, setGames] = useState({});
   const [myGameIds, setMyGameIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
+  const [joinCode, setJoinCode] = useState(pendingJoinCode||"");
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("games");
+  const [tab, setTab] = useState(pendingJoinCode?"join":"games");
   const [creating, setCreating] = useState(false);
+  const [autoJoining, setAutoJoining] = useState(!!pendingJoinCode);
 
   useEffect(() => { loadGames(); }, []);
+
+  // Auto-join when arriving via invite link
+  useEffect(() => {
+    if (autoJoining && !loading && pendingJoinCode) {
+      setAutoJoining(false);
+      onClearPendingCode?.();
+      joinGame();
+    }
+  }, [autoJoining, loading]);
 
   async function loadGames() {
     setLoading(true);
@@ -1119,13 +1134,26 @@ function GameSelectScreen({ session, onSelectGame, onLogout, onSuperAdmin }) {
             ) : (
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {myGames.map(g=>(
-                  <div key={g.id} className="game-card" onClick={async()=>{
+                  <div key={g.id} className="game-card" onClick={async(e)=>{
+                    if (e.target.closest('.copy-invite-btn')) return; // don't navigate when copying
                     const gs = await loadGameState(g.id);
                     onSelectGame(g.id, games[g.id], gs);
                   }}>
-                    <div className="game-card-name">{g.name}</div>
-                    <div className="game-card-meta">Admin: {g.adminId} · Code: <strong style={{letterSpacing:2}}>{g.joinCode}</strong></div>
-                    <span className="game-card-badge" style={{background:g.adminId===session.username?"var(--gold)":"var(--pitch)",color:g.adminId===session.username?"var(--ink)":"var(--gold)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                      <div style={{minWidth:0}}>
+                        <div className="game-card-name">{g.name}</div>
+                        <div className="game-card-meta">Admin: {g.adminId} · Code: <strong style={{letterSpacing:2}}>{g.joinCode}</strong></div>
+                      </div>
+                      <button className="copy-invite-btn btn btn-sm btn-pitch" style={{flexShrink:0,fontSize:11}}
+                        onClick={e=>{
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(`https://umersconi.com/join/${g.joinCode}`).then(()=>{
+                            e.target.textContent="Copied!";
+                            setTimeout(()=>e.target.textContent="🔗 Invite link",1500);
+                          });
+                        }}>🔗 Invite link</button>
+                    </div>
+                    <span className="game-card-badge" style={{background:g.adminId===session.username?"var(--red)":"rgba(255,255,255,0.08)",color:"white"}}>
                       {g.adminId===session.username?"ADMIN":"PLAYER"}
                     </span>
                   </div>
@@ -1138,7 +1166,7 @@ function GameSelectScreen({ session, onSelectGame, onLogout, onSuperAdmin }) {
         {tab==="create"&&(
           <div style={{background:"var(--card-bg)",borderRadius:6,padding:24}}>
             <div className="login-field"><label className="login-label">Game Name</label>
-              <input className="login-input" style={{background:"white",color:"var(--ink)",border:"1px solid #ddd"}} placeholder="e.g. World Cup 2026" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGame()} /></div>
+              <input className="login-input" placeholder="e.g. World Cup 2026" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGame()} /></div>
             <button className="login-btn" onClick={createGame} disabled={creating}>{creating?"Creating...":"Create Game"}</button>
             <p style={{marginTop:12,fontSize:12,color:"var(--silver)",fontStyle:"italic"}}>You'll be the admin. Share the join code with your friends.</p>
           </div>
@@ -1147,7 +1175,7 @@ function GameSelectScreen({ session, onSelectGame, onLogout, onSuperAdmin }) {
         {tab==="join"&&(
           <div style={{background:"var(--card-bg)",borderRadius:6,padding:24}}>
             <div className="login-field"><label className="login-label">Join Code</label>
-              <input className="login-input" style={{background:"white",color:"var(--ink)",border:"1px solid #ddd",textTransform:"uppercase",letterSpacing:4,fontSize:18,fontFamily:"Bebas Neue"}} placeholder="XXXXXX" value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&joinGame()} /></div>
+              <input className="login-input" style={{textTransform:"uppercase",letterSpacing:4,fontSize:18,fontFamily:"Anton,sans-serif"}} placeholder="XXXXXX" value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&joinGame()} /></div>
             <button className="login-btn" onClick={joinGame}>Join Game</button>
           </div>
         )}
@@ -1396,7 +1424,7 @@ function MatchesView({ game, dispatch, session }) {
         <div key={dk}>
           <div className="date-group-header" onClick={()=>toggleDate(dk)}>
             <span>
-              {matchDayLookup[dk] && <span style={{color:"var(--gold)",marginRight:8}}>{matchDayLookup[dk]}</span>}
+              {matchDayLookup[dk] && <span style={{color:"var(--red)",marginRight:8}}>{matchDayLookup[dk]}</span>}
               <span style={{color:"var(--silver)",fontSize:12}}>{dk}</span>
             </span>
             <span style={{fontSize:14}}>{openDates[dk]?"▲":"▼"} {matches.length} match{matches.length!==1?"es":""}</span>
@@ -1424,7 +1452,7 @@ function MatchesView({ game, dispatch, session }) {
                           {isKO&&<span className="tag-ko">{KNOCKOUT_ROUNDS.find(r=>r.id===match.round)?.label||match.round}</span>}
                           {!isKO&&<span>Group Stage</span>}
                           {match.kickoff&&<span>{formatKickoff(match.kickoff)}</span>}
-                          {deadline&&!hasResult&&<span style={{color:deadlinePassed?"var(--red)":"var(--gold)"}}>{deadlinePassed?"⚠ Deadline passed":`⏱ ${formatDeadline(deadline)}`}</span>}
+                          {deadline&&!hasResult&&<span style={{color:deadlinePassed?"var(--red)":"var(--silver)"}}>{deadlinePassed?"⚠ Deadline passed":`⏱ ${formatDeadline(deadline)}`}</span>}
                         </div>
                       </div>
                       <div className="match-result">{hasResult?`${match.result} · ${match.score}`:<span style={{color:"var(--silver)",fontSize:13}}>Pending</span>}</div>
@@ -1432,13 +1460,13 @@ function MatchesView({ game, dispatch, session }) {
 
                     {/* My prediction */}
                     {!hasResult&&(
-                      <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(201,168,76,0.15)",background:deadlinePassed?"#fff8f8":"#f8fff8"}}>
-                        <div style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:deadlinePassed?"var(--red)":"var(--pitch)",marginBottom:8}}>
+                      <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:deadlinePassed?"rgba(204,16,32,0.08)":"rgba(255,255,255,0.03)"}}>
+                        <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",fontWeight:700,letterSpacing:2,color:deadlinePassed?"var(--red)":"var(--silver)",marginBottom:8}}>
                           {deadlinePassed?"⚠ LATE SUBMISSION":"YOUR PREDICTION"}
                         </div>
                         {myPred&&!submitting[match.id]?(
                           <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                            <span style={{fontFamily:"Bebas Neue",fontSize:17,color:"var(--pitch)"}}>
+                            <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:17,color:"var(--cream)"}}>
                               {myPred.result==="H"?homeTeam:myPred.result==="A"?awayTeam:"Draw"} · {myPred.score||"?-?"}
                               {myPred.score?.includes("(PENS)")&&<span style={{fontSize:12,color:"#8e44ad",marginLeft:6}}>{myPred.result==="H"?homeTeam:awayTeam} on pens</span>}
                             </span>
@@ -1468,7 +1496,7 @@ function MatchesView({ game, dispatch, session }) {
                             </div>
                             {isKO&&(
                               <div>
-                                <div style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--silver)",marginBottom:5}}>DID THIS GO BEYOND 90 MINS?</div>
+                                <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:5}}>DID THIS GO BEYOND 90 MINS?</div>
                                 <div className="method-btns">
                                   {[{id:"aet",label:"After Extra Time"},{id:"pens",label:"Penalties"}].map(opt=>(
                                     <button key={opt.id} className={`method-btn ${draft.method===opt.id?`selected-${opt.id}`:""}`}
@@ -1480,7 +1508,7 @@ function MatchesView({ game, dispatch, session }) {
                                 </div>
                                 {draft.method==="pens"&&(
                                   <div style={{marginTop:8}}>
-                                    <div style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--silver)",marginBottom:5}}>WHO WINS THE SHOOTOUT?</div>
+                                    <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:5}}>WHO WINS THE SHOOTOUT?</div>
                                     <div className="method-btns">
                                       {[{id:"H",label:homeTeam||"Home"},{id:"A",label:awayTeam||"Away"}].map(opt=>(
                                         <button key={opt.id} className={`method-btn ${draft.pensWinner===opt.id?"selected-pens":""}`}
@@ -1495,7 +1523,7 @@ function MatchesView({ game, dispatch, session }) {
                             )}
                             {errors[match.id]&&<div style={{color:"var(--red)",fontSize:12,fontStyle:"italic"}}>⚠ {errors[match.id]}</div>}
                             {isLateFirst&&(
-                              <input className="pred-input" placeholder="⚠ You're late — provide your excuse (required)" style={{borderColor:"var(--red)",background:"#fff8f8"}}
+                              <input className="pred-input" placeholder="⚠ You're late — provide your excuse (required)" style={{borderColor:"var(--red)",background:"rgba(204,16,32,0.08)"}}
                                 value={draft.excuse||""} onChange={e=>setSubmitting(p=>({...p,[match.id]:{...(p[match.id]||{}),excuse:e.target.value}}))} />
                             )}
                             <div style={{display:"flex",gap:8}}>
@@ -1510,8 +1538,8 @@ function MatchesView({ game, dispatch, session }) {
                     )}
                     {hasResult&&myPred&&(
                       <div style={{padding:"8px 16px",borderBottom:"1px solid rgba(201,168,76,0.15)",background:"#f8f8f8",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                        <span style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--silver)"}}>YOUR PREDICTION</span>
-                        <span style={{fontFamily:"Bebas Neue",fontSize:15}}>{myPred.result==="H"?homeTeam:myPred.result==="A"?awayTeam:"Draw"} · {myPred.score||"?-?"}</span>
+                        <span style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)"}}>YOUR PREDICTION</span>
+                        <span style={{fontFamily:"Oswald,sans-serif",fontSize:15}}>{myPred.result==="H"?homeTeam:myPred.result==="A"?awayTeam:"Draw"} · {myPred.score||"?-?"}</span>
                         {myPred.late&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>late</span>}
                         {myPred.excuse&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>"{myPred.excuse}"</span>}
                       </div>
@@ -1570,7 +1598,7 @@ function TournieView({ game, dispatch, session }) {
       </div>
       {(!deadlinePassed||hasSubmitted)&&(
         <div style={{background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:6,padding:24,marginBottom:28}}>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:3,fontSize:15,color:"var(--pitch)",marginBottom:16}}>{deadlinePassed?"Your Predictions (locked)":"Your Tournament Predictions"}</div>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:3,fontSize:15,color:"var(--silver)",marginBottom:16}}>{deadlinePassed?"Your Predictions (locked)":"Your Tournament Predictions"}</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             {TOURNIE_CATEGORIES.map(cat=>(
               <div key={cat.id} className="admin-field">
@@ -1588,8 +1616,8 @@ function TournieView({ game, dispatch, session }) {
           )}
           {isFirstLate&&(
             <div style={{marginTop:14}}>
-              <div style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--red)",marginBottom:5}}>⚠ YOU'RE LATE. YOUR EXCUSE WILL BE PUBLIC.</div>
-              <input className="pred-input" placeholder="Your excuse…" style={{borderColor:"var(--red)",background:"#fff8f8"}} value={excuse} onChange={e=>setExcuse(e.target.value)} />
+              <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--red)",marginBottom:5}}>⚠ YOU'RE LATE. YOUR EXCUSE WILL BE PUBLIC.</div>
+              <input className="pred-input" placeholder="Your excuse…" style={{borderColor:"var(--red)",background:"rgba(204,16,32,0.08)"}} value={excuse} onChange={e=>setExcuse(e.target.value)} />
               <div className="flex-end"><button className="btn btn-red" onClick={handleSave} disabled={!excuse.trim()}>Submit Late (with shame)</button></div>
             </div>
           )}
@@ -1618,7 +1646,7 @@ function TournieView({ game, dispatch, session }) {
             ];
           })}
           <div className="tg-cell label" style={{fontWeight:700}}>Tournie Score</div>
-          {game.players.map(p=><div key={p} className="tg-cell" style={{fontFamily:"Bebas Neue",fontSize:16,color:"var(--gold)"}}>{deadlinePassed||p===session.username?scores[p].tournies.toLocaleString():"—"}</div>)}
+          {game.players.map(p=><div key={p} className="tg-cell" style={{fontFamily:"Oswald,sans-serif",fontSize:16,color:"var(--gold)"}}>{deadlinePassed||p===session.username?scores[p].tournies.toLocaleString():"—"}</div>)}
         </div>
       </div>
     </div>
@@ -1683,7 +1711,7 @@ function KillerView({ game, dispatch, session }) {
               <div>
                 <div className="match-teams">⚔ {round.label}</div>
                 <div className="match-meta">
-                  {round.resolved?<span style={{background:"#27ae60",color:"white",padding:"2px 8px",borderRadius:2,fontFamily:"Bebas Neue",fontSize:10}}>RESOLVED</span>:deadlinePassed?<span style={{color:"var(--red)"}}>⚠ Deadline passed</span>:<span style={{color:"var(--gold)"}}>⏱ Open</span>}
+                  {round.resolved?<span style={{background:"#27ae60",color:"white",padding:"2px 8px",borderRadius:2,fontFamily:"Oswald,sans-serif",fontSize:10}}>RESOLVED</span>:deadlinePassed?<span style={{color:"var(--red)"}}>⚠ Deadline passed</span>:<span style={{color:"var(--gold)"}}>⏱ Open</span>}
                   {myPred&&!round.resolved&&<span style={{fontStyle:"italic"}}>✓ Submitted</span>}
                 </div>
               </div>
@@ -1692,8 +1720,8 @@ function KillerView({ game, dispatch, session }) {
             {isActive&&(
               <div style={{padding:20}}>
                 {!round.resolved&&(
-                  <div style={{marginBottom:20,background:"#f8fff8",border:"1px solid rgba(39,174,96,0.2)",borderRadius:4,padding:16}}>
-                    <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--pitch)",marginBottom:12}}>{deadlinePassed?"⚠ DEADLINE PASSED":"YOUR PREDICTIONS"}</div>
+                  <div style={{marginBottom:20,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(39,174,96,0.2)",borderRadius:4,padding:16}}>
+                    <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:12}}>{deadlinePassed?"⚠ DEADLINE PASSED":"YOUR PREDICTIONS"}</div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
                       {cats.map(stat=>(
                         <div key={stat.id} className="admin-field">
@@ -1725,9 +1753,9 @@ function KillerView({ game, dispatch, session }) {
                 {round.resolved&&agg&&(
                   <div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:16}}>
-                      <div style={{background:"#d5f5e3",border:"1px solid #27ae60",borderRadius:4,padding:12,textAlign:"center"}}><div style={{fontFamily:"Bebas Neue",fontSize:11,letterSpacing:2,color:"#1e8449"}}>⭐ STAR</div><div style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:16}}>{round.starBonus||"—"}</div><div style={{fontSize:11,color:"#27ae60"}}>+50 pts bonus</div></div>
-                      <div style={{background:"#fadbd8",border:"1px solid var(--red)",borderRadius:4,padding:12,textAlign:"center"}}><div style={{fontFamily:"Bebas Neue",fontSize:11,letterSpacing:2,color:"var(--red)"}}>💩 WORST</div><div style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:16}}>{agg.worst||"—"}</div></div>
-                      <div style={{background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:4,padding:12,textAlign:"center"}}><div style={{fontFamily:"Bebas Neue",fontSize:11,letterSpacing:2,color:"var(--silver)"}}>ACTUAL AGG</div><div style={{fontFamily:"Bebas Neue",fontSize:28,color:"var(--gold)"}}>{agg.actualAgg}</div></div>
+                      <div style={{background:"#d5f5e3",border:"1px solid #27ae60",borderRadius:4,padding:12,textAlign:"center"}}><div style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"#1e8449"}}>⭐ STAR</div><div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:16}}>{round.starBonus||"—"}</div><div style={{fontSize:11,color:"#27ae60"}}>+50 pts bonus</div></div>
+                      <div style={{background:"#fadbd8",border:"1px solid var(--red)",borderRadius:4,padding:12,textAlign:"center"}}><div style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--red)"}}>💩 WORST</div><div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:16}}>{agg.worst||"—"}</div></div>
+                      <div style={{background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:4,padding:12,textAlign:"center"}}><div style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--silver)"}}>ACTUAL AGG</div><div style={{fontFamily:"Oswald,sans-serif",fontSize:28,color:"var(--gold)"}}>{agg.actualAgg}</div></div>
                     </div>
                     {cats.map(stat=>{
                       const qr=calcKillerQuestion(stat.id,game.players,round.predictions||{},round.actuals?.[stat.id]);
@@ -1736,8 +1764,8 @@ function KillerView({ game, dispatch, session }) {
                       return (
                         <div key={stat.id} style={{marginBottom:10,padding:"10px 14px",background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.15)",borderRadius:4}}>
                           <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                            <span style={{fontFamily:"Bebas Neue",fontSize:14,letterSpacing:1}}>{stat.label}</span>
-                            <span style={{fontFamily:"Bebas Neue",fontSize:16,color:"var(--gold)"}}>Actual: {round.actuals?.[stat.id]}</span>
+                            <span style={{fontFamily:"Oswald,sans-serif",fontSize:14,letterSpacing:1}}>{stat.label}</span>
+                            <span style={{fontFamily:"Oswald,sans-serif",fontSize:16,color:"var(--gold)"}}>Actual: {round.actuals?.[stat.id]}</span>
                           </div>
                           {qr.houseWins?<div style={{color:"var(--red)",fontSize:12,fontStyle:"italic",marginBottom:6}}>🏠 House wins</div>:<div style={{color:"#27ae60",fontSize:12,fontStyle:"italic",marginBottom:6}}>🏆 {qr.winners.join(", ")} {qr.exact?"EXACT! (4×50 pts)":"(2×50 pts)"}</div>}
                           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
@@ -1753,7 +1781,7 @@ function KillerView({ game, dispatch, session }) {
                     })}
                     {(round.steals?.length>0||round.houseSteals?.length>0)&&(
                       <div style={{marginTop:14}}>
-                        <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--pitch)",marginBottom:8}}>POINT MOVEMENTS</div>
+                        <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>POINT MOVEMENTS</div>
                         {round.steals?.map((s,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">⚔</div><div className="chaos-body"><div className="chaos-player">{s.winner} steals from {s.victim}</div><div className="chaos-reason">{cats.find(st=>st.id===s.question)?.label}{s.exact?" — EXACT!":""}</div></div><div className="chaos-pts positive">+{s.pts}</div></div>)}
                         {round.houseSteals?.map((s,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">🏠</div><div className="chaos-body"><div className="chaos-player">House takes from {s.victim}</div><div className="chaos-reason">{s.allQuestions?"All questions failed":cats.find(st=>st.id===s.question)?.label}</div></div><div className="chaos-pts negative">−{s.pts}</div></div>)}
                         {round.starBonus&&<div className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">⭐</div><div className="chaos-body"><div className="chaos-player">{round.starBonus}</div><div className="chaos-reason">Star performer bonus</div></div><div className="chaos-pts positive">+50</div></div>}
@@ -1765,10 +1793,10 @@ function KillerView({ game, dispatch, session }) {
                 )}
                 {deadlinePassed&&!round.resolved&&(
                   <div>
-                    <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>ALL PREDICTIONS</div>
+                    <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>ALL PREDICTIONS</div>
                     <div style={{overflowX:"auto"}}>
                       <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                        <thead><tr style={{background:"var(--ink)",color:"var(--gold)"}}><th style={{padding:"6px 10px",textAlign:"left",fontFamily:"Bebas Neue"}}>Stat</th>{game.players.map(p=><th key={p} style={{padding:"6px 10px",fontFamily:"Bebas Neue"}}>{p}</th>)}</tr></thead>
+                        <thead><tr style={{background:"var(--ink)",color:"var(--gold)"}}><th style={{padding:"6px 10px",textAlign:"left",fontFamily:"Oswald,sans-serif"}}>Stat</th>{game.players.map(p=><th key={p} style={{padding:"6px 10px",fontFamily:"Oswald,sans-serif"}}>{p}</th>)}</tr></thead>
                         <tbody>
                           {cats.map((stat,i)=>(
                             <tr key={stat.id} style={{background:i%2===0?"var(--card-bg)":"white"}}>
@@ -1846,13 +1874,13 @@ function EmojiBonusAdmin({ game, mg, dispatch }) {
   return (
     <div>
       <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-        <span style={{fontFamily:"Bebas Neue",fontSize:18,letterSpacing:2,color:"var(--gold)"}}>{mg.label}</span>
-        <span style={{fontFamily:"Bebas Neue",fontSize:11,letterSpacing:1,padding:"2px 8px",borderRadius:2,background:mg.status==="active"?"#27ae60":mg.status==="ended"?"var(--silver)":"var(--pitch)",color:"white"}}>{mg.status||"draft"}</span>
+        <span style={{fontFamily:"Oswald,sans-serif",fontSize:18,letterSpacing:2,color:"var(--gold)"}}>{mg.label}</span>
+        <span style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:1,padding:"2px 8px",borderRadius:2,background:mg.status==="active"?"#27ae60":mg.status==="ended"?"var(--silver)":"var(--pitch)",color:"white"}}>{mg.status||"draft"}</span>
       </div>
 
       {/* AI Suggestion Generator */}
       <div style={{background:"rgba(201,168,76,0.06)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:4,padding:16,marginBottom:16}}>
-        <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>🤖 AI PUZZLE SUGGESTER</div>
+        <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>🤖 AI PUZZLE SUGGESTER</div>
         <div style={{display:"flex",gap:8,marginBottom:suggestions.length?12:0}}>
           <input className="admin-input" style={{flex:1}} placeholder="Country name (e.g. Zimbabwe)" value={country} onChange={e=>setCountry(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generateSuggestions()} />
           <button className="btn btn-gold" onClick={generateSuggestions} disabled={loading||!country.trim()}>{loading?"Generating…":"Generate"}</button>
@@ -1860,7 +1888,7 @@ function EmojiBonusAdmin({ game, mg, dispatch }) {
         {suggestions.map((s,i)=>(
           <div key={i} style={{padding:"10px 12px",background:"var(--card-bg)",borderRadius:4,marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
             <div>
-              <div style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:14}}>{s.name}</div>
+              <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14}}>{s.name}</div>
               <div style={{fontSize:22,margin:"4px 0"}}>{s.emojis}</div>
               <div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic"}}>{s.explanation}</div>
             </div>
@@ -1871,7 +1899,7 @@ function EmojiBonusAdmin({ game, mg, dispatch }) {
 
       {/* Add Puzzle */}
       <div style={{background:"#1a0a0a",border:"1px solid #3a1515",borderRadius:4,padding:16,marginBottom:16}}>
-        <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:10}}>ADD PUZZLE</div>
+        <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:10}}>ADD PUZZLE</div>
         <div className="admin-grid">
           <div className="admin-field"><label className="admin-label">Country</label><input className="admin-input" placeholder="e.g. Zimbabwe" value={newPuzzle.country} onChange={e=>setNewPuzzle(p=>({...p,country:e.target.value}))} /></div>
           <div className="admin-field"><label className="admin-label">Emojis</label><input className="admin-input" placeholder="🔚❤️" value={newPuzzle.emojis} onChange={e=>setNewPuzzle(p=>({...p,emojis:e.target.value}))} style={{fontSize:22}} /></div>
@@ -1884,7 +1912,7 @@ function EmojiBonusAdmin({ game, mg, dispatch }) {
       {/* Puzzle List */}
       {(mg.puzzles||[]).length>0&&(
         <div style={{marginBottom:16}}>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>PUZZLES ({mg.puzzles.length})</div>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>PUZZLES ({mg.puzzles.length})</div>
           {mg.puzzles.map(pz=>(
             <div key={pz.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #3a1515"}}>
               <div>
@@ -1933,7 +1961,7 @@ function EmojiBonusPlayer({ game, mg, session, dispatch }) {
 
   return (
     <div>
-      <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:12}}>
+      <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:12}}>
         {!active&&!ended?"⏳ Waiting for Umersconi to start…":active?"🟢 LIVE — Submit your guesses!":"🔴 ENDED"}
       </div>
       {(mg.puzzles||[]).map(pz=>{
@@ -1943,16 +1971,16 @@ function EmojiBonusPlayer({ game, mg, session, dispatch }) {
           <div key={pz.id} style={{background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.15)",borderRadius:4,padding:16,marginBottom:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
               <div>
-                <div style={{fontFamily:"Bebas Neue",fontSize:11,letterSpacing:2,color:"var(--silver)",marginBottom:4}}>{pz.country?.toUpperCase()}</div>
+                <div style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--silver)",marginBottom:4}}>{pz.country?.toUpperCase()}</div>
                 <div style={{fontSize:36}}>{pz.emojis}</div>
               </div>
               {solved&&<div style={{background:"#d5f5e3",border:"1px solid #27ae60",borderRadius:4,padding:"6px 12px",textAlign:"center"}}>
-                <div style={{fontFamily:"Bebas Neue",fontSize:11,color:"#27ae60"}}>SOLVED</div>
+                <div style={{fontFamily:"Oswald,sans-serif",fontSize:11,color:"#27ae60"}}>SOLVED</div>
                 <div style={{fontWeight:700,fontSize:13}}>{pz.winner} +5pts</div>
                 {ended&&<div style={{fontSize:13,color:"var(--silver)",marginTop:2}}>{pz.answer}</div>}
               </div>}
               {!solved&&ended&&<div style={{background:"#fadbd8",border:"1px solid var(--red)",borderRadius:4,padding:"6px 12px",textAlign:"center"}}>
-                <div style={{fontFamily:"Bebas Neue",fontSize:11,color:"var(--red)"}}>UMERSCONI WINS</div>
+                <div style={{fontFamily:"Oswald,sans-serif",fontSize:11,color:"var(--red)"}}>UMERSCONI WINS</div>
                 <div style={{fontSize:13,color:"var(--silver)",marginTop:2}}>{pz.answer}</div>
               </div>}
             </div>
@@ -2004,7 +2032,7 @@ function WhoAmIAdmin({ game, mg, dispatch }) {
 
   return (
     <div>
-      <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:18,color:"var(--gold)",marginBottom:12}}>{mg.label}</div>
+      <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:18,color:"var(--gold)",marginBottom:12}}>{mg.label}</div>
 
       {/* Answer */}
       <div style={{marginBottom:16}}>
@@ -2021,7 +2049,7 @@ function WhoAmIAdmin({ game, mg, dispatch }) {
         {(mg.clues||[]).map(c=>(
           <div key={c.num} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #3a1515",gap:12}}>
             <div>
-              <span style={{fontFamily:"Bebas Neue",color:"var(--gold)",marginRight:8}}>CLUE {c.num}</span>
+              <span style={{fontFamily:"Oswald,sans-serif",color:"var(--red)",marginRight:8}}>CLUE {c.num}</span>
               <span style={{color:"var(--cream)",fontSize:13}}>{c.text}</span>
               {c.releasedAt&&<span style={{color:"#27ae60",fontSize:11,marginLeft:8}}>Released {new Date(c.releasedAt).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</span>}
             </div>
@@ -2043,7 +2071,7 @@ function WhoAmIAdmin({ game, mg, dispatch }) {
           {Object.entries(mg.guesses||{}).sort((a,b)=>new Date(a[1].timestamp)-new Date(b[1].timestamp)).map(([player,g])=>(
             <div key={player} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #3a1515"}}>
               <div>
-                <span style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:14,color:"var(--cream)"}}>{player}</span>
+                <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14,color:"var(--cream)"}}>{player}</span>
                 <span style={{color:"var(--silver)",fontSize:12,margin:"0 8px"}}>after Clue {g.clue}</span>
                 <span style={{fontSize:13,color:"var(--cream)"}}>{g.text}</span>
                 <span style={{color:"var(--silver)",fontSize:11,marginLeft:8}}>{new Date(g.timestamp).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})}</span>
@@ -2085,7 +2113,7 @@ function WhoAmIPlayer({ game, mg, session, dispatch }) {
       {releasedClues.length===0&&<div className="empty">Umersconi hasn't released any clues yet.</div>}
       {releasedClues.map(c=>(
         <div key={c.num} style={{background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.15)",borderRadius:4,padding:16,marginBottom:10}}>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--gold)",marginBottom:6}}>CLUE {c.num} — {c.num===1?"100":c.num===2?"25":"25"} POINTS TO GUESS IT NOW</div>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--gold)",marginBottom:6}}>CLUE {c.num} — {c.num===1?"100":c.num===2?"25":"25"} POINTS TO GUESS IT NOW</div>
           <div style={{fontSize:16,color:"var(--ink)"}}>{c.text}</div>
         </div>
       ))}
@@ -2174,14 +2202,14 @@ function BountyHuntersAdmin({ game, mg, dispatch }) {
 
   return (
     <div>
-      <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:18,color:"var(--gold)",marginBottom:12}}>{mg.label}</div>
+      <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:18,color:"var(--gold)",marginBottom:12}}>{mg.label}</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
         <div style={{background:"#fadbd8",border:"1px solid var(--red)",borderRadius:4,padding:12}}>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:11,color:"var(--red)",marginBottom:6}}>🎯 MOST WANTED</div>
-          {topHalf.map(p=><div key={p} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",color:"var(--ink)",fontSize:13}}><span style={{fontWeight:600}}>{p}</span><span style={{fontFamily:"Bebas Neue",color:"var(--red)"}}>{bounties[p]} pts</span></div>)}
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:11,color:"var(--red)",marginBottom:6}}>🎯 MOST WANTED</div>
+          {topHalf.map(p=><div key={p} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",color:"var(--ink)",fontSize:13}}><span style={{fontWeight:600}}>{p}</span><span style={{fontFamily:"Oswald,sans-serif",color:"var(--red)"}}>{bounties[p]} pts</span></div>)}
         </div>
         <div style={{background:"#d6eaf8",border:"1px solid #2980b9",borderRadius:4,padding:12}}>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:11,color:"#2980b9",marginBottom:6}}>🏹 HUNTERS</div>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:11,color:"#2980b9",marginBottom:6}}>🏹 HUNTERS</div>
           {bottomHalf.map(p=><div key={p} style={{padding:"4px 0",color:"var(--ink)",fontSize:13,fontWeight:600}}>{p}</div>)}
         </div>
       </div>
@@ -2199,8 +2227,8 @@ function BountyHuntersAdmin({ game, mg, dispatch }) {
       {mg.status==="ended"&&(
         <div style={{marginTop:16}}>
           <div className="admin-label" style={{marginBottom:8}}>RESOLVED KILLS</div>
-          {(mg.resolvedKills||[]).map((k,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(201,168,76,0.15)",fontSize:13,color:"var(--ink)"}}><span>⚔ <strong>{k.hunter}</strong> hunts <strong>{k.victim}</strong></span><span style={{fontFamily:"Bebas Neue",color:"var(--red)"}}>−{k.pts} / +{k.pts}</span></div>)}
-          {(mg.bloodlust||[]).map((b,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(201,168,76,0.15)",fontSize:13,color:"var(--ink)"}}><span>🩸 <strong>{b.hunter}</strong> BLOODLUST → <strong>{b.victim}</strong></span><span style={{fontFamily:"Bebas Neue",color:"#8e44ad"}}>−50 / +50</span></div>)}
+          {(mg.resolvedKills||[]).map((k,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(201,168,76,0.15)",fontSize:13,color:"var(--ink)"}}><span>⚔ <strong>{k.hunter}</strong> hunts <strong>{k.victim}</strong></span><span style={{fontFamily:"Oswald,sans-serif",color:"var(--red)"}}>−{k.pts} / +{k.pts}</span></div>)}
+          {(mg.bloodlust||[]).map((b,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(201,168,76,0.15)",fontSize:13,color:"var(--ink)"}}><span>🩸 <strong>{b.hunter}</strong> BLOODLUST → <strong>{b.victim}</strong></span><span style={{fontFamily:"Oswald,sans-serif",color:"#8e44ad"}}>−50 / +50</span></div>)}
         </div>
       )}
     </div>
@@ -2225,7 +2253,7 @@ function BountyHuntersPlayer({ game, mg, session, dispatch }) {
 
   if (!isHunter) return (
     <div>
-      <div style={{padding:"12px 16px",background:"#fadbd8",border:"1px solid var(--red)",borderRadius:4,marginBottom:12,fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--red)"}}>🎯 YOU ARE MOST WANTED — Bounty: {bounties[session.username]} pts</div>
+      <div style={{padding:"12px 16px",background:"#fadbd8",border:"1px solid var(--red)",borderRadius:4,marginBottom:12,fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--red)"}}>🎯 YOU ARE MOST WANTED — Bounty: {bounties[session.username]} pts</div>
       <div style={{fontSize:13,color:"var(--silver)",fontStyle:"italic"}}>Hunters are gunning for you. Play well and stay safe.</div>
     </div>
   );
@@ -2243,7 +2271,7 @@ function BountyHuntersPlayer({ game, mg, session, dispatch }) {
 
   return (
     <div>
-      <div style={{padding:"10px 14px",background:"#d6eaf8",border:"1px solid #2980b9",borderRadius:4,marginBottom:16,fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"#2980b9"}}>🏹 YOU ARE A HUNTER</div>
+      <div style={{padding:"10px 14px",background:"#d6eaf8",border:"1px solid #2980b9",borderRadius:4,marginBottom:16,fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"#2980b9"}}>🏹 YOU ARE A HUNTER</div>
       {mg.status==="active"?(
         <div>
           <div style={{marginBottom:14}}>
@@ -2251,7 +2279,7 @@ function BountyHuntersPlayer({ game, mg, session, dispatch }) {
             <div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",marginBottom:10}}>You'll earn kills based on correct results today. Tag who you want to hunt — first kill = Tag 1, second = Tag 2, etc.</div>
             {[0,1,2,3,4].map(i=>(
               <div key={i} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
-                <span style={{fontFamily:"Bebas Neue",fontSize:12,color:"var(--silver)",minWidth:60}}>KILL {i+1}</span>
+                <span style={{fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--silver)",minWidth:60}}>KILL {i+1}</span>
                 <select className="pred-input" style={{flex:1}} value={myTags[i]||""} onChange={e=>setTag(i,e.target.value)}>
                   <option value="">— Tag target —</option>
                   {topHalf.map(p=><option key={p} value={p}>{p} ({bounties[p]} pts)</option>)}
@@ -2507,8 +2535,8 @@ function TraitorsAdmin({ game, mg, dispatch }) {
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-        <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:18,color:"var(--gold)"}}>{mg.label}</div>
-        <div style={{fontFamily:"Bebas Neue",fontSize:11,letterSpacing:2,padding:"3px 10px",borderRadius:2,background:"rgba(192,57,43,0.2)",color:"var(--red)",border:"1px solid rgba(192,57,43,0.4)"}}>{phaseLabel}</div>
+        <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:18,color:"var(--gold)"}}>{mg.label}</div>
+        <div style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,padding:"3px 10px",borderRadius:2,background:"rgba(192,57,43,0.2)",color:"var(--red)",border:"1px solid rgba(192,57,43,0.4)"}}>{phaseLabel}</div>
       </div>
 
       {/* SETUP */}
@@ -2531,7 +2559,7 @@ function TraitorsAdmin({ game, mg, dispatch }) {
               <input type="checkbox" checked={selectedTraitors.includes(p)}
                 onChange={e=>setSelectedTraitors(prev=>e.target.checked?[...prev,p]:prev.filter(t=>t!==p))}
                 style={{accentColor:"var(--red)",width:16,height:16}} />
-              <span style={{color:"var(--cream)",fontSize:13,fontFamily:"Playfair Display,serif",fontWeight:700}}>{p}</span>
+              <span style={{color:"var(--cream)",fontSize:13,fontFamily:"Oswald,sans-serif",fontWeight:700}}>{p}</span>
             </div>
           ))}
           <div className="flex-end" style={{marginTop:14}}>
@@ -2573,7 +2601,7 @@ function TraitorsAdmin({ game, mg, dispatch }) {
             const acts=(mg.actions||{})[t]||[];
             return (
               <div key={t} style={{padding:"10px 0",borderBottom:"1px solid #3a1515"}}>
-                <div style={{fontFamily:"Playfair Display,serif",fontWeight:700,color:"var(--red)",fontSize:14,marginBottom:4}}>{t}</div>
+                <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,color:"var(--red)",fontSize:14,marginBottom:4}}>{t}</div>
                 {acts.length===0
                   ? <div style={{color:"var(--silver)",fontStyle:"italic",fontSize:12}}>No actions submitted yet</div>
                   : acts.map((a,i)=><div key={i} style={{fontSize:12,color:"var(--cream)"}}>{TRAITOR_ACTIONS.find(x=>x.id===a.action)?.label} → {a.target}{a.target2?` & ${a.target2}`:""}</div>)
@@ -2627,7 +2655,7 @@ function TraitorsAdmin({ game, mg, dispatch }) {
           <div style={{padding:"14px 16px",borderRadius:4,marginBottom:16,
             background:mg.allIdentified?"#d5f5e3":mg.noneIdentified?"#fadbd8":"rgba(201,168,76,0.1)",
             border:`1px solid ${mg.allIdentified?"#27ae60":mg.noneIdentified?"var(--red)":"rgba(201,168,76,0.3)"}`}}>
-            <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:14,marginBottom:6,
+            <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:14,marginBottom:6,
               color:mg.allIdentified?"#27ae60":mg.noneIdentified?"var(--red)":"var(--gold)"}}>
               {mg.allIdentified?"✓ ALL TRAITORS IDENTIFIED — Faithful share the pot"
                :mg.noneIdentified?"✗ NO TRAITORS IDENTIFIED — Traitors share the pot"
@@ -2646,7 +2674,7 @@ function TraitorsAdmin({ game, mg, dispatch }) {
             <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"6px 0",borderBottom:"1px solid rgba(201,168,76,0.1)",gap:8}}>
               <div style={{fontSize:12,color:a.type==="info"?"var(--silver)":"var(--cream)"}}>{a.reason}</div>
               {a.type!=="info"&&a.type!=="ambush"&&a.type!=="double_tap"&&(
-                <div style={{fontFamily:"Bebas Neue",fontSize:14,whiteSpace:"nowrap",
+                <div style={{fontFamily:"Oswald,sans-serif",fontSize:14,whiteSpace:"nowrap",
                   color:a.type==="gain"?"#27ae60":"var(--red)"}}>
                   {a.type==="gain"?"+":"-"}{a.pts}
                 </div>
@@ -2716,7 +2744,7 @@ function TraitorsPlayer({ game, mg, session, dispatch }) {
       {/* Phase 1 — Nominate */}
       {(mg.status==="nominations"||!mg.status)&&(
         <div>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>
             🕵️ PHASE 1 — WHO DO YOU SUSPECT?
           </div>
           <div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",marginBottom:12}}>
@@ -2741,7 +2769,7 @@ function TraitorsPlayer({ game, mg, session, dispatch }) {
       {/* Phase 2 — Traitor picks actions */}
       {isTraitor && mg.status==="traitors-set"&&(
         <div>
-          <div style={{padding:"10px 14px",background:"rgba(192,57,43,0.15)",border:"1px solid var(--red)",borderRadius:4,marginBottom:16,fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--red)"}}>
+          <div style={{padding:"10px 14px",background:"rgba(192,57,43,0.15)",border:"1px solid var(--red)",borderRadius:4,marginBottom:16,fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--red)"}}>
             🔴 YOU ARE A TRAITOR — Choose 2 actions below
           </div>
           <div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",marginBottom:14}}>
@@ -2763,7 +2791,7 @@ function TraitorsPlayer({ game, mg, session, dispatch }) {
 
           {myActions.length<2&&TRAITOR_ACTIONS.map(act=>(
             <div key={act.id} style={{padding:"12px 0",borderBottom:"1px solid #3a1515"}}>
-              <div style={{fontFamily:"Bebas Neue",fontSize:13,letterSpacing:1,color:"var(--gold)",marginBottom:3}}>{act.label}</div>
+              <div style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:1,color:"var(--gold)",marginBottom:3}}>{act.label}</div>
               <div style={{fontSize:11,color:"var(--silver)",fontStyle:"italic",marginBottom:8}}>{act.desc}</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 <select className="pred-input" style={{flex:1,minWidth:130,fontSize:12}}
@@ -2793,7 +2821,7 @@ function TraitorsPlayer({ game, mg, session, dispatch }) {
       {/* Non-traitor waiting for phase 2 */}
       {!isTraitor&&mg.status==="traitors-set"&&(
         <div style={{padding:"14px 16px",background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.15)",borderRadius:4,fontSize:13,color:"var(--silver)"}}>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--gold)",marginBottom:8}}>⚠ STAY ALERT</div>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--gold)",marginBottom:8}}>⚠ STAY ALERT</div>
           Watch your fellow players carefully today. Notice anything strange or out-of-character? Bank it as evidence for the vote later.
         </div>
       )}
@@ -2801,7 +2829,7 @@ function TraitorsPlayer({ game, mg, session, dispatch }) {
       {/* Phase 3 — Vote */}
       {mg.status==="voting"&&(
         <div>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--red)",marginBottom:12}}>🗳 PHASE 3 — VOTE: WHO WERE THE TRAITORS?</div>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--red)",marginBottom:12}}>🗳 PHASE 3 — VOTE: WHO WERE THE TRAITORS?</div>
           <div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",marginBottom:14}}>
             Select all players you believe were Traitors. A strict majority wins.
           </div>
@@ -2816,7 +2844,7 @@ function TraitorsPlayer({ game, mg, session, dispatch }) {
                   <input type="checkbox" id={`vote-${p}`} checked={vote.includes(p)}
                     onChange={e=>setVote(prev=>e.target.checked?[...prev,p]:prev.filter(v=>v!==p))}
                     style={{accentColor:"var(--red)",width:16,height:16}} />
-                  <label htmlFor={`vote-${p}`} style={{color:"var(--cream)",fontSize:14,cursor:"pointer",fontFamily:"Playfair Display,serif",fontWeight:700}}>{p}</label>
+                  <label htmlFor={`vote-${p}`} style={{color:"var(--cream)",fontSize:14,cursor:"pointer",fontFamily:"Oswald,sans-serif",fontWeight:700}}>{p}</label>
                 </div>
               ))}
               <div className="flex-end" style={{marginTop:14}}>
@@ -2833,7 +2861,7 @@ function TraitorsPlayer({ game, mg, session, dispatch }) {
           <div style={{padding:"14px 16px",borderRadius:4,marginBottom:14,
             background:mg.allIdentified?"#d5f5e3":mg.noneIdentified?"#fadbd8":"rgba(201,168,76,0.1)",
             border:`1px solid ${mg.allIdentified?"#27ae60":mg.noneIdentified?"var(--red)":"rgba(201,168,76,0.3)"}`}}>
-            <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:13,marginBottom:6,
+            <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:13,marginBottom:6,
               color:mg.allIdentified?"#27ae60":mg.noneIdentified?"var(--red)":"var(--gold)"}}>
               {mg.allIdentified?"✓ YOU GOT THEM — Faithful split the pot"
                :mg.noneIdentified?"✗ THE TRAITORS WON — They split the pot"
@@ -2895,7 +2923,7 @@ function DuelsAdmin({ game, mg, dispatch }) {
 
   return (
     <div>
-      <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:18,color:"var(--gold)",marginBottom:12}}>{mg.label}</div>
+      <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:18,color:"var(--gold)",marginBottom:12}}>{mg.label}</div>
       <div className="admin-field" style={{marginBottom:14}}>
         <label className="admin-label">Killer Round for Stats</label>
         <select className="admin-input" value={mg.killerRoundId||""} onChange={e=>dispatch({type:"UPDATE_MINI_GAME",id:mg.id,updates:{killerRoundId:e.target.value}})}>
@@ -2910,7 +2938,7 @@ function DuelsAdmin({ game, mg, dispatch }) {
             <option value="">Player 1</option>
             {game.players.map(p=><option key={p} value={p}>{p}</option>)}
           </select>
-          <span style={{color:"var(--gold)",fontFamily:"Bebas Neue",fontSize:16,alignSelf:"center"}}>VS</span>
+          <span style={{color:"var(--gold)",fontFamily:"Oswald,sans-serif",fontSize:16,alignSelf:"center"}}>VS</span>
           <select className="admin-input" style={{flex:1,minWidth:120}} value={p2} onChange={e=>setP2(e.target.value)}>
             <option value="">Player 2</option>
             {game.players.map(p=><option key={p} value={p}>{p}</option>)}
@@ -2939,7 +2967,7 @@ function DuelsAdmin({ game, mg, dispatch }) {
             <div key={i} style={{padding:"10px 0",borderBottom:"1px solid rgba(201,168,76,0.15)"}}>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}>
                 <span style={{color:"var(--cream)"}}>{r.player1} <span style={{color:"var(--silver)",fontSize:11}}>({r.pred1??'—'})</span> vs {r.player2} <span style={{color:"var(--silver)",fontSize:11}}>({r.pred2??'—'})</span></span>
-                <span style={{color:"var(--gold)",fontFamily:"Bebas Neue"}}>Actual: {r.actual}</span>
+                <span style={{color:"var(--gold)",fontFamily:"Oswald,sans-serif"}}>Actual: {r.actual}</span>
               </div>
               <div style={{fontSize:12,marginTop:4,color:r.winner==="tie"?"var(--silver)":"#27ae60"}}>
                 {r.winner==="tie"?"🤝 TIE — no points moved":`⚔ ${r.winner} wins — steals 100 pts`}
@@ -2966,7 +2994,7 @@ function DuelsPlayer({ game, mg, session }) {
         const iWon=r.winner===session.username;
         return (
           <div key={i} style={{padding:"14px 16px",background:iWon?"#d5f5e3":r.winner==="tie"?"var(--card-bg)":"#fadbd8",border:`1px solid ${iWon?"#27ae60":r.winner==="tie"?"rgba(201,168,76,0.2)":"var(--red)"}`,borderRadius:4,marginBottom:10}}>
-            <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:iWon?"#27ae60":r.winner==="tie"?"var(--silver)":"var(--red)",marginBottom:6}}>
+            <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:iWon?"#27ae60":r.winner==="tie"?"var(--silver)":"var(--red)",marginBottom:6}}>
               {iWon?"⚔ YOU WIN":r.winner==="tie"?"🤝 TIE":"⚔ YOU LOSE"}
             </div>
             <div style={{fontSize:13,color:"var(--ink)"}}>vs {opp} · Your guess: {myPred??'—'} · Their guess: {oppPred??'—'} · Actual: {r.actual}</div>
@@ -3033,7 +3061,7 @@ function MiniGamesAdmin({ game, dispatch, session }) {
           {mgs.map(mg=>(
             <div key={mg.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #3a1515",cursor:"pointer"}} onClick={()=>setActiveId(mg.id)}>
               <div>
-                <div style={{fontFamily:"Playfair Display,serif",fontWeight:700,color:"var(--cream)",fontSize:15}}>{mg.label}</div>
+                <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,color:"var(--cream)",fontSize:15}}>{mg.label}</div>
                 <div style={{fontSize:11,color:"var(--silver)",marginTop:2}}>{MINI_GAME_TYPES.find(t=>t.id===mg.type)?.label} · {mg.status||"draft"}</div>
               </div>
               <div style={{display:"flex",gap:6}}>
@@ -3147,7 +3175,7 @@ function MatchDaysTab({ game, dispatch }) {
       <div style={{maxHeight:480,overflowY:"auto"}}>
         {matchDays.map((md,i)=>(
           <div key={md.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #3a1515",gap:10}}>
-            <div style={{flexShrink:0,fontFamily:"Bebas Neue",fontSize:12,color:"var(--silver)",minWidth:24}}>#{i+1}</div>
+            <div style={{flexShrink:0,fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--silver)",minWidth:24}}>#{i+1}</div>
             {editingId===md.id ? (
               <div style={{display:"flex",gap:6,flex:1}}>
                 <input className="admin-input" style={{flex:1,padding:"4px 8px"}} value={editLabel}
@@ -3159,12 +3187,12 @@ function MatchDaysTab({ game, dispatch }) {
               </div>
             ) : (
               <div style={{flex:1,cursor:"pointer"}} onClick={()=>{setEditingId(md.id);setEditLabel(md.label);}}>
-                <span style={{color:"var(--cream)",fontSize:14,fontFamily:"Playfair Display,serif",fontWeight:700}}>{md.label}</span>
+                <span style={{color:"var(--cream)",fontSize:14,fontFamily:"Oswald,sans-serif",fontWeight:700}}>{md.label}</span>
                 <span style={{color:"var(--silver)",fontSize:11,marginLeft:10}}>{md.date}</span>
               </div>
             )}
             <div style={{textAlign:"right",flexShrink:0}}>
-              <div style={{fontFamily:"Bebas Neue",color:"var(--gold)",fontSize:13}}>{md.matchIds.length} match{md.matchIds.length!==1?"es":""}</div>
+              <div style={{fontFamily:"Oswald,sans-serif",color:"var(--gold)",fontSize:13}}>{md.matchIds.length} match{md.matchIds.length!==1?"es":""}</div>
               <div style={{fontSize:10,color:"var(--silver)",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {md.matchIds.slice(0,3).map(id=>(game.matches||[]).find(m=>m.id===id)?.teams||id).join(", ")}{md.matchIds.length>3?` +${md.matchIds.length-3} more`:""}
               </div>
@@ -3262,7 +3290,7 @@ function FixturesTab({ game, dispatch }) {
       </div>
       <div className="flex-end" style={{marginTop:0,marginBottom:20}}><button className="btn btn-gold" onClick={addMatch}>Add Match</button></div>
 
-      <div style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>ALL FIXTURES — click team name to edit</div>
+      <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>ALL FIXTURES — click team name to edit</div>
       <div style={{maxHeight:440,overflowY:"auto"}}>
         {sorted.map(m=>(
           <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #3a1515",gap:8}}>
@@ -3336,26 +3364,26 @@ function ResultsTab({ game, dispatch }) {
       {selMatch && (
         <div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-            <span style={{color:"var(--cream)",fontFamily:"Playfair Display,serif",fontWeight:700,minWidth:80}}>{hT}</span>
+            <span style={{color:"var(--cream)",fontFamily:"Oswald,sans-serif",fontWeight:700,minWidth:80}}>{hT}</span>
             <input type="number" min="0" max="30" className="score-num"
               style={{background:"#2a1010",color:"var(--cream)",border:"1px solid #5a2020"}}
               value={scoreHome} onChange={e=>setScoreHome(e.target.value)} />
-            <span style={{color:"var(--silver)",fontFamily:"Bebas Neue",fontSize:22}}>—</span>
+            <span style={{color:"var(--silver)",fontFamily:"Oswald,sans-serif",fontSize:22}}>—</span>
             <input type="number" min="0" max="30" className="score-num"
               style={{background:"#2a1010",color:"var(--cream)",border:"1px solid #5a2020"}}
               value={scoreAway} onChange={e=>setScoreAway(e.target.value)} />
-            <span style={{color:"var(--cream)",fontFamily:"Playfair Display,serif",fontWeight:700,minWidth:80}}>{aT}</span>
+            <span style={{color:"var(--cream)",fontFamily:"Oswald,sans-serif",fontWeight:700,minWidth:80}}>{aT}</span>
           </div>
 
           {isKO && (
             <div style={{marginBottom:14}}>
-              <div style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>
+              <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>
                 DID THIS GO BEYOND 90 MINS?
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
                 {[{id:"",l:"Normal Time"},{id:"aet",l:"After Extra Time"},{id:"pens",l:"Penalties"}].map(opt=>(
                   <button key={opt.id}
-                    style={{fontFamily:"Bebas Neue",letterSpacing:1,fontSize:13,padding:"8px 14px",border:`2px solid ${method===opt.id?"#27ae60":"#5a2020"}`,borderRadius:4,background:method===opt.id?"#e8f4e8":"#2a1010",color:method===opt.id?"#1e8449":"var(--silver)",cursor:"pointer"}}
+                    style={{fontFamily:"Oswald,sans-serif",letterSpacing:1,fontSize:13,padding:"8px 14px",border:`2px solid ${method===opt.id?"#27ae60":"#5a2020"}`,borderRadius:4,background:method===opt.id?"#e8f4e8":"#2a1010",color:method===opt.id?"#1e8449":"var(--silver)",cursor:"pointer"}}
                     onClick={()=>{setMethod(opt.id);setPensWinner("");}}>
                     {opt.l}
                   </button>
@@ -3363,11 +3391,11 @@ function ResultsTab({ game, dispatch }) {
               </div>
               {method==="pens" && (
                 <div>
-                  <div style={{fontSize:11,fontFamily:"Bebas Neue",letterSpacing:2,color:"var(--silver)",marginBottom:6}}>WHO WINS THE SHOOTOUT?</div>
+                  <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:6}}>WHO WINS THE SHOOTOUT?</div>
                   <div style={{display:"flex",gap:8}}>
                     {[{id:"H",l:hT},{id:"A",l:aT}].map(opt=>(
                       <button key={opt.id}
-                        style={{fontFamily:"Bebas Neue",letterSpacing:1,fontSize:13,padding:"8px 14px",border:`2px solid ${pensWinner===opt.id?"#8e44ad":"#5a2020"}`,borderRadius:4,background:pensWinner===opt.id?"#f0e8f8":"#2a1010",color:pensWinner===opt.id?"#6c3483":"var(--silver)",cursor:"pointer"}}
+                        style={{fontFamily:"Oswald,sans-serif",letterSpacing:1,fontSize:13,padding:"8px 14px",border:`2px solid ${pensWinner===opt.id?"#8e44ad":"#5a2020"}`,borderRadius:4,background:pensWinner===opt.id?"#f0e8f8":"#2a1010",color:pensWinner===opt.id?"#6c3483":"var(--silver)",cursor:"pointer"}}
                         onClick={()=>setPensWinner(opt.id)}>
                         {opt.l}
                       </button>
@@ -3484,14 +3512,14 @@ function ManualPredsTab({ game, dispatch }) {
           </div>
           {match&&(
             <div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 80px 100px",gap:10,marginBottom:8,fontFamily:"Bebas Neue",fontSize:11,letterSpacing:2,color:"var(--silver)"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 80px 100px",gap:10,marginBottom:8,fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--silver)"}}>
                 <div>Player</div><div>Result</div><div>Score</div>
               </div>
               {game.players.map(player=>{
                 const ex=(game.predictions[match.id]||{})[player]||{};
                 return (
                   <div key={player} style={{display:"grid",gridTemplateColumns:"1fr 80px 100px",gap:10,marginBottom:8,alignItems:"center"}}>
-                    <div style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:14}}>{player}</div>
+                    <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14}}>{player}</div>
                     <input className="pred-input" placeholder="H/A/D/x" maxLength={10} value={preds[player]?.result??ex.result??""} onChange={e=>setPreds(p=>({...p,[player]:{...(p[player]||{}),result:e.target.value.toUpperCase()}}))} />
                     <input className="pred-input" placeholder="2-1" value={preds[player]?.score??ex.score??""} onChange={e=>setPreds(p=>({...p,[player]:{...(p[player]||{}),score:e.target.value}}))} />
                   </div>
@@ -3824,8 +3852,8 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
                 return (
                   <div key={stat.id} style={{padding:"12px 0",borderBottom:"1px solid #3a1515"}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-                      <span style={{fontFamily:"Bebas Neue",fontSize:13,letterSpacing:1,color:"var(--cream)"}}>{stat.label}</span>
-                      <span style={{fontFamily:"Bebas Neue",fontSize:12,color:"var(--gold)"}}>Actual: {round.actuals?.[stat.id]}</span>
+                      <span style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:1,color:"var(--cream)"}}>{stat.label}</span>
+                      <span style={{fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--gold)"}}>Actual: {round.actuals?.[stat.id]}</span>
                     </div>
                     {qr.houseWins?(
                       <div><div style={{color:"var(--red)",fontSize:12,marginBottom:6}}>🏠 House wins — pick 2 victims</div>
@@ -4125,12 +4153,12 @@ function AutopilotPanel({ game, dispatch, session }) {
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
         <div>
-          <div style={{fontFamily:"Bebas Neue",letterSpacing:3,fontSize:22,color:"var(--gold)"}}>🤖 Admin Autopilot</div>
+          <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:3,fontSize:22,color:"var(--gold)"}}>🤖 Admin Autopilot</div>
           <div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",marginTop:2}}>Umersconi, unleashed. Results reviewed, never undone.</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:12,color:"var(--silver)"}}>Status:</span>
-          <div style={{fontFamily:"Bebas Neue",fontSize:13,letterSpacing:2,padding:"4px 12px",borderRadius:2,
+          <div style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:2,padding:"4px 12px",borderRadius:2,
             background:ap.enabled?"rgba(39,174,96,0.2)":"rgba(138,138,138,0.1)",
             border:`1px solid ${ap.enabled?"#27ae60":"#555"}`,
             color:ap.enabled?"#27ae60":"var(--silver)"}}>
@@ -4194,22 +4222,22 @@ function AutopilotPanel({ game, dispatch, session }) {
                 </div>
               ) : (
                 <div style={{background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:4,overflow:"hidden"}}>
-                  <div style={{background:"var(--ink)",padding:"10px 16px",fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--gold)"}}>
+                  <div style={{background:"var(--ink)",padding:"10px 16px",fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--gold)"}}>
                     ✓ AUTOPILOT RAN — {lastResult.actionsExecuted} ACTIONS EXECUTED
                   </div>
                   {lastResult.reasoning&&(
                     <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(201,168,76,0.1)",fontSize:13,fontStyle:"italic",color:"#555",background:"#fafaf5"}}>
-                      <span style={{fontFamily:"Bebas Neue",fontSize:11,letterSpacing:2,color:"var(--silver)",display:"block",marginBottom:4}}>UMERSCONI'S REASONING</span>
+                      <span style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--silver)",display:"block",marginBottom:4}}>UMERSCONI'S REASONING</span>
                       "{lastResult.reasoning}"
                     </div>
                   )}
                   {[...(lastResult.awards||[]).map(a=>({...a,kind:"award"})), ...(lastResult.infinetinos||[]).map(a=>({...a,kind:"fine"}))].map((a,i)=>(
                     <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"10px 16px",borderBottom:"1px solid rgba(201,168,76,0.08)",gap:10}}>
                       <div>
-                        <div style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:14}}>{a.player} <span style={{fontFamily:"Bebas Neue",fontSize:10,letterSpacing:1,padding:"1px 6px",borderRadius:2,background:a.kind==="award"?"var(--gold)":"var(--red)",color:a.kind==="award"?"var(--ink)":"white"}}>{a.kind==="award"?"AWARD":"FINE"}</span></div>
+                        <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14}}>{a.player} <span style={{fontFamily:"Oswald,sans-serif",fontSize:10,letterSpacing:1,padding:"1px 6px",borderRadius:2,background:a.kind==="award"?"var(--gold)":"var(--red)",color:a.kind==="award"?"var(--ink)":"white"}}>{a.kind==="award"?"AWARD":"FINE"}</span></div>
                         <div style={{fontSize:12,color:"#555",fontStyle:"italic",marginTop:2}}>{a.reason}</div>
                       </div>
-                      <div style={{fontFamily:"Bebas Neue",fontSize:18,color:a.kind==="award"?"#27ae60":"var(--red)",whiteSpace:"nowrap"}}>
+                      <div style={{fontFamily:"Oswald,sans-serif",fontSize:18,color:a.kind==="award"?"#27ae60":"var(--red)",whiteSpace:"nowrap"}}>
                         {a.kind==="award"?`+${a.pts}`:a.pts}
                       </div>
                     </div>
@@ -4217,10 +4245,10 @@ function AutopilotPanel({ game, dispatch, session }) {
                   {lastResult.miniGame&&(
                     <div style={{padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
-                        <div style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:11,color:"var(--silver)",marginBottom:2}}>MINI GAME TRIGGERED</div>
-                        <div style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:14}}>{lastResult.miniGame.label}</div>
+                        <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:11,color:"var(--silver)",marginBottom:2}}>MINI GAME TRIGGERED</div>
+                        <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14}}>{lastResult.miniGame.label}</div>
                       </div>
-                      <div style={{fontFamily:"Bebas Neue",fontSize:12,color:"var(--gold)"}}>🎲 {lastResult.miniGame.type.replace("_"," ").toUpperCase()}</div>
+                      <div style={{fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--gold)"}}>🎲 {lastResult.miniGame.type.replace("_"," ").toUpperCase()}</div>
                     </div>
                   )}
                 </div>
@@ -4257,7 +4285,7 @@ function AutopilotPanel({ game, dispatch, session }) {
             </div>
             {game.players.map(p=>(
               <div key={p} style={{display:"grid",gridTemplateColumns:"120px 1fr",gap:10,marginBottom:8,alignItems:"center"}}>
-                <span style={{fontFamily:"Playfair Display,serif",fontWeight:700,fontSize:14,color:"var(--cream)"}}>{p}</span>
+                <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14,color:"var(--cream)"}}>{p}</span>
                 <input className="admin-input" style={{padding:"7px 10px"}}
                   placeholder={`Notes on ${p}…`}
                   value={playerNotes[p]||""}
@@ -4281,11 +4309,11 @@ function AutopilotPanel({ game, dispatch, session }) {
               <div style={{background:"var(--ink)",padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}
                 onClick={()=>setActiveLogId(activeLogId===entry.id?null:entry.id)}>
                 <div>
-                  <span style={{fontFamily:"Bebas Neue",letterSpacing:2,fontSize:12,color:"var(--gold)"}}>{entry.matchDayLabel}</span>
+                  <span style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--gold)"}}>{entry.matchDayLabel}</span>
                   <span style={{color:"var(--silver)",fontSize:11,marginLeft:10}}>{new Date(entry.timestamp).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>
                 </div>
                 <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  <span style={{fontFamily:"Bebas Neue",fontSize:11,color:"var(--silver)"}}>{entry.actionsExecuted} actions</span>
+                  <span style={{fontFamily:"Oswald,sans-serif",fontSize:11,color:"var(--silver)"}}>{entry.actionsExecuted} actions</span>
                   <span style={{color:"var(--silver)"}}>{activeLogId===entry.id?"▲":"▼"}</span>
                 </div>
               </div>
@@ -4293,7 +4321,7 @@ function AutopilotPanel({ game, dispatch, session }) {
                 <div style={{padding:"12px 16px"}}>
                   {entry.reasoning&&(
                     <div style={{padding:"8px 12px",background:"#fafaf5",border:"1px solid rgba(201,168,76,0.1)",borderRadius:3,marginBottom:12,fontSize:12,fontStyle:"italic",color:"#555"}}>
-                      <div style={{fontFamily:"Bebas Neue",fontSize:10,letterSpacing:2,color:"var(--silver)",marginBottom:3}}>REASONING</div>
+                      <div style={{fontFamily:"Oswald,sans-serif",fontSize:10,letterSpacing:2,color:"var(--silver)",marginBottom:3}}>REASONING</div>
                       "{entry.reasoning}"
                     </div>
                   )}
@@ -4301,10 +4329,10 @@ function AutopilotPanel({ game, dispatch, session }) {
                     <div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,padding:"6px 0",borderBottom:"1px solid rgba(201,168,76,0.08)",fontSize:12}}>
                       <div>
                         <strong>{a.player}</strong>
-                        <span style={{margin:"0 6px",fontFamily:"Bebas Neue",fontSize:10,padding:"1px 5px",borderRadius:2,background:a.kind==="award"?"var(--gold)":"var(--red)",color:a.kind==="award"?"var(--ink)":"white"}}>{a.kind==="award"?"AWARD":"FINE"}</span>
+                        <span style={{margin:"0 6px",fontFamily:"Oswald,sans-serif",fontSize:10,padding:"1px 5px",borderRadius:2,background:a.kind==="award"?"var(--gold)":"var(--red)",color:a.kind==="award"?"var(--ink)":"white"}}>{a.kind==="award"?"AWARD":"FINE"}</span>
                         <span style={{color:"#555",fontStyle:"italic"}}>{a.reason}</span>
                       </div>
-                      <span style={{fontFamily:"Bebas Neue",fontSize:14,color:a.kind==="award"?"#27ae60":"var(--red)",whiteSpace:"nowrap"}}>{a.kind==="award"?"+":""}{a.pts}</span>
+                      <span style={{fontFamily:"Oswald,sans-serif",fontSize:14,color:a.kind==="award"?"#27ae60":"var(--red)",whiteSpace:"nowrap"}}>{a.kind==="award"?"+":""}{a.pts}</span>
                     </div>
                   ))}
                   {entry.miniGame&&(
@@ -4428,6 +4456,16 @@ export default function App() {
   const realtimeChannel = useRef(null);
   const isSaving = useRef(false);  // prevent realtime from overwriting local saves
 
+  // Invite link — detect /join/:code in URL on mount
+  const [pendingJoinCode, setPendingJoinCode] = useState(() => {
+    const match = window.location.pathname.match(/^\/join\/([A-Za-z0-9]+)/i);
+    if (match) {
+      window.history.replaceState({}, '', '/'); // clean URL immediately
+      return match[1].toUpperCase();
+    }
+    return null;
+  });
+
   // Boot — check Supabase session
   useEffect(() => {
     getSession().then(async s => {
@@ -4530,10 +4568,10 @@ export default function App() {
     </div></>
   );
 
-  if (appState==="login") return <><GlobalStyles/><LoginScreen onLogin={handleLogin}/></>;
+  if (appState==="login") return <><GlobalStyles/><LoginScreen onLogin={handleLogin} pendingJoinCode={pendingJoinCode}/></>;
   if (appState==="reset-password") return <><GlobalStyles/><ResetPasswordScreen onDone={()=>setAppState("game-select")}/></>;
   if (appState==="super-admin") return <><GlobalStyles/><SuperAdminScreen session={session} onBack={()=>setAppState("game-select")}/></>;
-  if (appState==="game-select") return session ? <><GlobalStyles/><GameSelectScreen session={session} onSelectGame={handleSelectGame} onLogout={handleLogout} onSuperAdmin={()=>setAppState("super-admin")}/></> : <><GlobalStyles/><LoginScreen onLogin={handleLogin}/></>;
+  if (appState==="game-select") return session ? <><GlobalStyles/><GameSelectScreen session={session} onSelectGame={handleSelectGame} onLogout={handleLogout} onSuperAdmin={()=>setAppState("super-admin")} pendingJoinCode={pendingJoinCode} onClearPendingCode={()=>setPendingJoinCode(null)}/></> : <><GlobalStyles/><LoginScreen onLogin={handleLogin} pendingJoinCode={pendingJoinCode}/>;</>;
 
   // In-game
   return (
