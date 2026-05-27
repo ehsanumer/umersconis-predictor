@@ -126,9 +126,13 @@ export async function getAllGames() {
 }
 
 export async function deleteGame(gameId) {
-  await supabase.from('game_players').delete().eq('game_id', gameId)
-  await supabase.from('game_states').delete().eq('game_id', gameId)
-  await supabase.from('games_index').delete().eq('id', gameId)
+  const res = await fetch('/api/admin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'deleteGame', gameId }),
+  })
+  const data = await res.json()
+  if (!res.ok || !data.success) throw new Error(data.error || 'Delete failed')
 }
 
 export async function getGamePlayerCounts() {
