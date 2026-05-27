@@ -3,7 +3,8 @@ import {
   supabase, signUp, signIn, signOut, getSession, onAuthChange,
   getGamesIndex, createGameInDB, findGameByJoinCode, getUserGames,
   loadGameState, saveGameState, subscribeToGame, unsubscribeFromGame,
-  getUsernameForUser, addPlayerToGame, resetPasswordForEmail, updatePassword,
+  getUsernameForUser, addPlayerToGame, removePlayerFromGame, getPlayerEmails,
+  resetPasswordForEmail, updatePassword, getAllGames, deleteGame, getGamePlayerCounts,
 } from "./lib/supabase.js";
 
 // ─── THEME — USA 94 DENIM STARS ──────────────────────────────────────────────
@@ -41,7 +42,8 @@ const GlobalStyles = () => (
     .logo { font-family: 'Anton', sans-serif; font-size: 26px; letter-spacing: 3px; color: var(--cream); line-height: 1; white-space: nowrap; }
     .logo span { color: var(--red); }
     .game-badge { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 2px; color: var(--silver); border: 1px solid rgba(204,16,32,0.3); padding: 3px 10px; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-    .nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; }
+    .nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+    .nav::-webkit-scrollbar { display: none; }
     .nav-btn { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 13px; padding: 8px 12px; border: none; background: transparent; color: var(--silver); cursor: pointer; transition: all 0.2s; border-bottom: 3px solid transparent; white-space: nowrap; }
     .nav-btn:hover { color: var(--cream); }
     .nav-btn.active { color: var(--cream); border-bottom-color: var(--red); }
@@ -137,8 +139,7 @@ const GlobalStyles = () => (
 
     /* MATCHES */
     .matches-grid { display: flex; flex-direction: column; gap: 10px; }
-    .date-group-header { font-family: 'Anton', sans-serif; letter-spacing: 3px; font-size: 14px; color: var(--cream); background: var(--ink); padding: 8px 16px; border-radius: 0; margin-top: 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--red); }
-    .date-group-header:first-child { margin-top: 0; }
+    .date-group-header { font-family: 'Anton', sans-serif; letter-spacing: 3px; font-size: 14px; color: var(--cream); background: var(--ink); padding: 8px 16px; border-radius: 2px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--red); }
     .match-card {
       background: #142846; border: 1px solid rgba(204,16,32,0.2); border-radius: 3px; overflow: hidden; position: relative;
       background-image: repeating-linear-gradient(135deg, transparent 0, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px);
@@ -211,7 +212,8 @@ const GlobalStyles = () => (
     .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
     /* TABS */
-    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid rgba(204,16,32,0.3); overflow-x: auto; }
+    .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid rgba(204,16,32,0.3); overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+    .tabs::-webkit-scrollbar { display: none; }
     .tab { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 13px; padding: 9px 16px; background: transparent; border: none; color: var(--silver); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; white-space: nowrap; }
     .tab:hover { color: var(--cream); }
     .tab.active { color: var(--cream); border-bottom-color: var(--red); }
@@ -842,6 +844,23 @@ function gameReducer(state, action) {
     case "SET_KILLER_ACTUALS": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,actuals:action.actuals}:r) };
     case "RESOLVE_KILLER": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,resolved:true,steals:action.steals,houseSteals:action.houseSteals,starBonus:action.starBonus,starPredAwards:action.starPredAwards,worstPredAwards:action.worstPredAwards}:r) };
     case "ADD_PLAYER": return { ...state, players:[...(state.players||[]), action.player] };
+    case "REMOVE_PLAYER": {
+      const p = action.player;
+      const preds = {...(state.predictions||{})};
+      Object.keys(preds).forEach(mid => { const m={...preds[mid]}; delete m[p]; preds[mid]=m; });
+      return { ...state, players:(state.players||[]).filter(x=>x!==p), predictions:preds };
+    }
+    case "RENAME_PLAYER": {
+      const {oldName, newName} = action;
+      const preds = {...(state.predictions||{})};
+      Object.keys(preds).forEach(mid => { const m={...preds[mid]}; if(m[oldName]!==undefined){m[newName]=m[oldName]; delete m[oldName];} preds[mid]=m; });
+      return { ...state,
+        players:(state.players||[]).map(x=>x===oldName?newName:x),
+        predictions:preds,
+        umersconiAwards:(state.umersconiAwards||[]).map(a=>a.player===oldName?{...a,player:newName}:a),
+        infinetinos:(state.infinetinos||[]).map(a=>a.player===oldName?{...a,player:newName}:a),
+      };
+    }
     default: return state;
   }
 }
@@ -1007,7 +1026,7 @@ function ResetPasswordScreen({ onDone }) {
 }
 
 // ─── GAME SELECT SCREEN ───────────────────────────────────────────────────────
-function GameSelectScreen({ session, onSelectGame, onLogout }) {
+function GameSelectScreen({ session, onSelectGame, onLogout, onSuperAdmin }) {
   const [games, setGames] = useState({});
   const [myGameIds, setMyGameIds] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1133,7 +1152,10 @@ function GameSelectScreen({ session, onSelectGame, onLogout }) {
           </div>
         )}
 
-        <div style={{marginTop:24,textAlign:"center"}}>
+        <div style={{marginTop:24,textAlign:"center",display:"flex",justifyContent:"center",gap:10}}>
+          {session.username===SUPER_ADMIN&&(
+            <button className="btn btn-sm" style={{background:"rgba(204,16,32,0.15)",color:"#ff7088",border:"1px solid rgba(204,16,32,0.3)",fontFamily:"Oswald,sans-serif",letterSpacing:2}} onClick={onSuperAdmin}>★ Super Admin</button>
+          )}
           <button className="logout-btn" onClick={onLogout}>Sign Out</button>
         </div>
       </div>
@@ -3190,7 +3212,7 @@ function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGame }) {
         {tab==="killer"     && <KillerAdminPanel game={game} dispatch={dispatch} session={session} />}
         {tab==="minigames"  && <MiniGamesAdmin game={game} dispatch={dispatch} session={session} />}
         {tab==="preds"      && <ManualPredsTab game={game} dispatch={dispatch} />}
-        {tab==="players"    && <PlayersTab game={game} dispatch={dispatch} session={session} />}
+        {tab==="players"    && <PlayersTab game={game} gameId={activeGameId} dispatch={dispatch} session={session} />}
         {tab==="autopilot"  && <AutopilotPanel game={game} dispatch={dispatch} session={session} />}
         {tab==="api"        && <FixtureSync game={game} dispatch={dispatch} />}
       </div>
@@ -3487,15 +3509,210 @@ function ManualPredsTab({ game, dispatch }) {
   );
 }
 
-function PlayersTab({ game, dispatch, session }) {
+function PlayersTab({ game, gameId, dispatch, session }) {
+  const [emails, setEmails] = useState({});
+  const [renaming, setRenaming] = useState(null); // playerName being renamed
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState({});
+  const [msg, setMsg] = useState({});
+
+  useEffect(() => {
+    if (game.players?.length) {
+      getPlayerEmails(game.players).then(setEmails).catch(()=>{});
+    }
+  }, [game.players?.join(",")]);
+
+  function flash(player, text, isErr) {
+    setMsg(m => ({...m, [player]: {text, err: isErr}}));
+    setTimeout(() => setMsg(m => { const n={...m}; delete n[player]; return n; }), 4000);
+  }
+
+  async function handleDelete(player) {
+    if (!window.confirm(`Remove ${player} from this game? Their predictions will be deleted.`)) return;
+    setBusy(b=>({...b,[player]:true}));
+    try {
+      await removePlayerFromGame(gameId, player);
+      dispatch({type:"REMOVE_PLAYER", player});
+      flash(player, "Removed ✓");
+    } catch(e) { flash(player, "Error: "+e.message, true); }
+    setBusy(b=>({...b,[player]:false}));
+  }
+
+  async function handleReset(player) {
+    const email = emails[player];
+    if (!email) { flash(player, "No email found for this player", true); return; }
+    setBusy(b=>({...b,[player]:true}));
+    try {
+      await resetPasswordForEmail(email);
+      flash(player, `Reset email sent to ${email} ✓`);
+    } catch(e) { flash(player, "Error: "+e.message, true); }
+    setBusy(b=>({...b,[player]:false}));
+  }
+
+  async function handleRename(player) {
+    const n = newName.trim();
+    if (!n || n===player) { setRenaming(null); return; }
+    if (game.players.includes(n)) { flash(player, `${n} is already a player`, true); return; }
+    setBusy(b=>({...b,[player]:true}));
+    try {
+      dispatch({type:"RENAME_PLAYER", oldName:player, newName:n});
+      flash(n, `Renamed from ${player} ✓`);
+    } catch(e) { flash(player, "Error: "+e.message, true); }
+    setRenaming(null); setNewName("");
+    setBusy(b=>({...b,[player]:false}));
+  }
+
   return (
     <div>
-      <div className="notice">Share the join code <strong style={{color:"var(--gold)",letterSpacing:3,fontFamily:"Bebas Neue"}}>{game.name}</strong> with players. When they join with the code, they're automatically added to this game.</div>
-      {game.players.map(p=>(
-        <div key={p} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #3a1515",color:"var(--cream)"}}>
-          <span style={{fontFamily:"Playfair Display,serif",fontSize:15}}>{p}{p===session.username&&<span style={{color:"var(--silver)",fontSize:11,marginLeft:8}}>(you)</span>}</span>
+      <div className="notice">
+        Share join code <strong style={{color:"var(--red)",letterSpacing:2,fontFamily:"Anton,sans-serif"}}>{game.name}</strong> with players. As admin you can manage them below.
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:0}}>
+        {(game.players||[]).map(p => (
+          <div key={p} style={{borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"10px 4px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+                <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:16,color:"var(--cream)"}}>
+                  {p}
+                  {p===session.username&&<span style={{color:"var(--silver)",fontSize:11,marginLeft:8,fontWeight:400}}>(you)</span>}
+                </span>
+                {emails[p]&&<span style={{fontSize:11,color:"var(--silver)"}}>{emails[p]}</span>}
+              </div>
+              {renaming===p ? (
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <input
+                    className="admin-input" style={{padding:"4px 8px",fontSize:13,width:140}}
+                    value={newName} onChange={e=>setNewName(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter")handleRename(p);if(e.key==="Escape"){setRenaming(null);setNewName("");}}}
+                    autoFocus placeholder="New name"
+                  />
+                  <button className="btn btn-red btn-sm" onClick={()=>handleRename(p)}>Save</button>
+                  <button className="btn btn-pitch btn-sm" onClick={()=>{setRenaming(null);setNewName("");}}>✕</button>
+                </div>
+              ) : (
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button className="btn btn-pitch btn-sm" disabled={busy[p]} onClick={()=>{setRenaming(p);setNewName(p);}}>✏ Rename</button>
+                  <button className="btn btn-pitch btn-sm" disabled={busy[p]||!emails[p]} onClick={()=>handleReset(p)} title={emails[p]?"Send reset email":"No email found"}>🔑 Reset Password</button>
+                  {p!==session.username&&(
+                    <button className="btn btn-sm" style={{background:"rgba(204,16,32,0.15)",color:"#ff7088",border:"1px solid rgba(204,16,32,0.3)"}} disabled={busy[p]} onClick={()=>handleDelete(p)}>✕ Remove</button>
+                  )}
+                </div>
+              )}
+            </div>
+            {msg[p]&&<div style={{marginTop:4,fontSize:12,color:msg[p].err?"#ff7088":"#4ade80"}}>{msg[p].text}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── SUPER ADMIN (Umer only) ──────────────────────────────────────────────────
+const SUPER_ADMIN = "Umer";
+
+function SuperAdminScreen({ session, onBack }) {
+  const [games, setGames] = useState([]);
+  const [counts, setCounts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(null);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [g, c] = await Promise.all([getAllGames(), getGamePlayerCounts()]);
+      setGames(g); setCounts(c);
+    } catch(e) { setMsg("Error: "+e.message); }
+    setLoading(false);
+  }
+
+  async function handleDelete(game) {
+    if (!window.confirm(`Permanently delete "${game.name}"?\nThis cannot be undone — all predictions and data will be lost.`)) return;
+    setDeleting(game.id);
+    try {
+      await deleteGame(game.id);
+      setGames(gs => gs.filter(g => g.id !== game.id));
+      setMsg(`"${game.name}" deleted.`);
+      setTimeout(()=>setMsg(""), 4000);
+    } catch(e) { setMsg("Error: "+e.message); }
+    setDeleting(null);
+  }
+
+  const fmtDate = iso => iso ? new Date(iso).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}) : "—";
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#0A1628",
+      backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.15) 2px,rgba(0,0,0,0.15) 4px)",
+      padding:"0 0 40px"
+    }}>
+      <div style={{height:14,background:"repeating-linear-gradient(90deg,#CC1020 0px 22px,#fff 22px 26px,#060F22 26px 48px,#fff 48px 52px)",boxShadow:"0 3px 14px rgba(204,16,32,0.6)"}}/>
+      <div style={{background:"rgba(6,15,34,0.97)",borderBottom:"3px solid #CC1020",padding:"0 24px",height:64,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{fontFamily:"Anton,sans-serif",fontSize:22,letterSpacing:3,color:"#fff"}}>UMER<span style={{color:"#CC1020"}}>SCONI</span> <span style={{fontSize:13,color:"#CC1020",letterSpacing:4,verticalAlign:"middle"}}>★ SUPER ADMIN</span></div>
+        <button className="logout-btn" onClick={onBack}>← Back</button>
+      </div>
+
+      <div style={{maxWidth:900,margin:"0 auto",padding:"28px 20px"}}>
+        <div style={{marginBottom:24}}>
+          <div style={{fontFamily:"Anton,sans-serif",fontSize:28,letterSpacing:3,color:"#fff",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{background:"#CC1020",padding:"4px 16px 4px 12px",clipPath:"polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)"}}>★ ALL GAMES</span>
+          </div>
+          <div style={{fontSize:12,color:"#5A7AA0",fontStyle:"italic",marginTop:8}}>Platform-wide view · {games.length} games total · Only visible to {SUPER_ADMIN}</div>
         </div>
-      ))}
+
+        {msg&&<div style={{background:"rgba(204,16,32,0.12)",border:"1px solid rgba(204,16,32,0.3)",borderRadius:4,padding:"10px 14px",marginBottom:16,color:"#ff7088",fontSize:13}}>{msg}</div>}
+
+        {loading ? (
+          <div style={{textAlign:"center",padding:48,color:"#5A7AA0",fontStyle:"italic"}}>Loading all games…</div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:0,border:"1px solid rgba(204,16,32,0.2)",borderRadius:4,overflow:"hidden"}}>
+            {/* Header */}
+            <div style={{background:"#060F22",display:"grid",gridTemplateColumns:"1fr 120px 80px 100px 100px",alignItems:"center",padding:"10px 16px",fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:11,letterSpacing:3,color:"rgba(255,255,255,0.3)",borderBottom:"2px solid #CC1020"}}>
+              <div>GAME</div><div>ADMIN</div><div style={{textAlign:"center"}}>PLAYERS</div><div>CREATED</div><div style={{textAlign:"right"}}>ACTIONS</div>
+            </div>
+            {games.length===0&&<div style={{padding:32,textAlign:"center",color:"#5A7AA0",fontStyle:"italic"}}>No games found.</div>}
+            {games.map((g,i) => (
+              <div key={g.id} style={{
+                display:"grid",gridTemplateColumns:"1fr 120px 80px 100px 100px",
+                alignItems:"center",padding:"14px 16px",
+                background:i%2===0?"#142846":"#0E1E38",
+                borderBottom:"1px solid rgba(255,255,255,0.04)",
+                backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px)"
+              }}>
+                <div>
+                  <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:16,color:"#fff"}}>{g.name}</div>
+                  <div style={{fontSize:11,color:"#5A7AA0",marginTop:2,fontFamily:"Barlow Condensed,sans-serif",letterSpacing:1}}>Code: {g.joinCode} · ID: {g.id.replace("game_","")}</div>
+                </div>
+                <div style={{fontSize:13,color:"#5A7AA0",fontFamily:"Oswald,sans-serif"}}>{g.adminId}</div>
+                <div style={{textAlign:"center",fontFamily:"Anton,sans-serif",fontSize:20,color:counts[g.id]>1?"#CC1020":"#5A7AA0"}}>{counts[g.id]||0}</div>
+                <div style={{fontSize:12,color:"#5A7AA0"}}>{fmtDate(g.createdAt)}</div>
+                <div style={{textAlign:"right"}}>
+                  <button
+                    className="btn btn-sm"
+                    style={{background:"rgba(204,16,32,0.15)",color:"#ff7088",border:"1px solid rgba(204,16,32,0.3)"}}
+                    disabled={deleting===g.id}
+                    onClick={()=>handleDelete(g)}
+                  >{deleting===g.id?"Deleting…":"✕ Delete"}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{marginTop:32,padding:"16px 20px",background:"rgba(204,16,32,0.06)",border:"1px solid rgba(204,16,32,0.2)",borderRadius:4}}>
+          <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:13,letterSpacing:2,color:"#CC1020",marginBottom:8}}>★ SUPER ADMIN CAPABILITIES</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px",fontSize:12,color:"#5A7AA0"}}>
+            <div>✓ View all games platform-wide</div>
+            <div>✓ Delete any game permanently</div>
+            <div>✓ See player counts per game</div>
+            <div>✓ See join codes and admin names</div>
+            <div style={{color:"rgba(90,122,160,0.4)"}}>◌ Impersonate admin (coming soon)</div>
+            <div style={{color:"rgba(90,122,160,0.4)"}}>◌ Merge games (coming soon)</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4315,7 +4532,8 @@ export default function App() {
 
   if (appState==="login") return <><GlobalStyles/><LoginScreen onLogin={handleLogin}/></>;
   if (appState==="reset-password") return <><GlobalStyles/><ResetPasswordScreen onDone={()=>setAppState("game-select")}/></>;
-  if (appState==="game-select") return session ? <><GlobalStyles/><GameSelectScreen session={session} onSelectGame={handleSelectGame} onLogout={handleLogout}/></> : <><GlobalStyles/><LoginScreen onLogin={handleLogin}/></>;
+  if (appState==="super-admin") return <><GlobalStyles/><SuperAdminScreen session={session} onBack={()=>setAppState("game-select")}/></>;
+  if (appState==="game-select") return session ? <><GlobalStyles/><GameSelectScreen session={session} onSelectGame={handleSelectGame} onLogout={handleLogout} onSuperAdmin={()=>setAppState("super-admin")}/></> : <><GlobalStyles/><LoginScreen onLogin={handleLogin}/></>;
 
   // In-game
   return (
@@ -4336,7 +4554,7 @@ export default function App() {
             <strong>{session?.username}</strong>
             {isAdmin&&<span className="admin-badge">ADMIN</span>}
             <button className="logout-btn" onClick={handleLogout}>Sign Out</button>
-            <button className="logout-btn" onClick={handleLeaveGame} title="Switch game">⇄</button>
+            <button className="logout-btn" onClick={handleLeaveGame} title="Switch game">← Games</button>
           </div>
         </div>
       </header>

@@ -110,6 +110,34 @@ export async function addPlayerToGame(gameId, username) {
   try { await supabase.from('game_players').upsert({ game_id: gameId, username }) } catch {}
 }
 
+export async function removePlayerFromGame(gameId, username) {
+  await supabase.from('game_players').delete().eq('game_id', gameId).eq('username', username)
+}
+
+export async function getPlayerEmails(usernames) {
+  const { data } = await supabase.from('profiles').select('username, email').in('username', usernames)
+  return Object.fromEntries((data||[]).map(r => [r.username, r.email]))
+}
+
+export async function getAllGames() {
+  const { data, error } = await supabase.from('games_index').select('*').order('created_at', { ascending: false })
+  if (error) throw error
+  return (data||[]).map(g => ({ id:g.id, name:g.name, joinCode:g.join_code, adminId:g.admin_id, createdAt:g.created_at }))
+}
+
+export async function deleteGame(gameId) {
+  await supabase.from('game_players').delete().eq('game_id', gameId)
+  await supabase.from('game_states').delete().eq('game_id', gameId)
+  await supabase.from('games_index').delete().eq('id', gameId)
+}
+
+export async function getGamePlayerCounts() {
+  const { data } = await supabase.from('game_players').select('game_id')
+  const counts = {}
+  ;(data||[]).forEach(r => { counts[r.game_id] = (counts[r.game_id]||0) + 1 })
+  return counts
+}
+
 export async function resetPasswordForEmail(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: window.location.origin,
