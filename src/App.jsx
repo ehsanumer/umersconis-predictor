@@ -3326,6 +3326,25 @@ function ResultsTab({ game, dispatch }) {
   const [scoreAway, setScoreAway] = useState("");
   const [method, setMethod] = useState(""); // "" | "aet" | "pens"
   const [pensWinner, setPensWinner] = useState(""); // "H" | "A"
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
+
+  async function quickSync() {
+    setSyncing(true); setSyncMsg("");
+    try {
+      const res = await fetch("/api/sync-results", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ endpoint:"/fixtures?league=1&season=2026&status=FT-AET-PEN" })
+      });
+      const data = await res.json();
+      if (!data.response?.length) { setSyncMsg("No new results available yet."); setSyncing(false); return; }
+      const results = data.response.map(f=>mapApiMatch(f)).filter(m=>m.result);
+      dispatch({ type:"SYNC_RESULTS", results });
+      setSyncMsg(`✓ Synced ${results.length} result(s)`);
+    } catch(e) { setSyncMsg("✗ "+e.message); }
+    setSyncing(false);
+    setTimeout(()=>setSyncMsg(""),5000);
+  }
 
   const unresolved = (game.matches||[]).filter(m=>!m.result).sort((a,b)=>new Date(a.kickoff||0)-new Date(b.kickoff||0));
   const selMatch = (game.matches||[]).find(m=>m.id===sel);
@@ -3353,6 +3372,12 @@ function ResultsTab({ game, dispatch }) {
 
   return (
     <div>
+      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+        <button className="btn btn-sm" style={{background:"rgba(74,222,128,0.12)",color:"#4ade80",border:"1px solid rgba(74,222,128,0.3)"}} onClick={quickSync} disabled={syncing}>
+          {syncing?"⟳ Syncing…":"⟳ Auto-sync from API"}
+        </button>
+        {syncMsg&&<span style={{fontSize:12,color:syncMsg.startsWith("✓")?"#4ade80":"#ff7088",fontStyle:"italic"}}>{syncMsg}</span>}
+      </div>
       {unresolved.length===0 && <div className="notice">All matches have results entered.</div>}
       <div className="admin-field" style={{marginBottom:16}}>
         <label className="admin-label">Match</label>
@@ -4445,6 +4470,246 @@ function FixtureSync({ game, dispatch }) {
 }
 
 
+// ─── MY PICKS ─────────────────────────────────────────────────────────────────
+function MyPicksView({ game, session }) {
+  const player = session.username;
+  const [filter, setFilter] = useState("all"); // all|correct|wrong|pending
+  const allMatches = [...(game.matches||[])].sort((a,b)=>new Date(b.kickoff||0)-new Date(a.kickoff||0));
+  const scores = calcScores(game);
+  const myScore = scores[player] || {};
+
+  function getOutcome(match) {
+    if (!match.result) return "pending";
+    const pred = (game.predictions[match.id]||{})[player];
+    if (!pred || pred.result==="x") return "none";
+    if (pred.result !== match.result) return "wrong";
+    const perfect = match.stage==="group"
+      ? pred.score===match.score
+      : isPerfectScore(pred.score, match.score);
+    return perfect ? "correctScore" : "correctResult";
+  }
+
+  function getMatchPts(match, outcome) {
+    if (outcome==="none"||outcome==="pending"||outcome==="wrong") return 0;
+    if (match.stage==="group") return outcome==="correctScore"?8:3;
+    const r = KNOCKOUT_ROUNDS.find(r=>r.id===match.round);
+    if (!r) return 0;
+    return outcome==="correctScore"?r.correctScore:r.correctResult;
+  }
+
+  const filtered = allMatches.filter(m => {
+    const o = getOutcome(m);
+    if (filter==="correct") return o==="correctScore"||o==="correctResult";
+    if (filter==="wrong") return o==="wrong"||o==="none";
+    if (filter==="pending") return o==="pending";
+    return true;
+  });
+
+  const played = allMatches.filter(m=>m.result).length;
+  const correctScores = allMatches.filter(m=>getOutcome(m)==="correctScore").length;
+  const correctResults = allMatches.filter(m=>getOutcome(m)==="correctResult").length;
+  const wrong = allMatches.filter(m=>getOutcome(m)==="wrong"||getOutcome(m)==="none").length;
+  const pending = allMatches.filter(m=>getOutcome(m)==="pending").length;
+
+  const OUTCOMES = {
+    correctScore:  { label:"★ Correct Score",  color:"#4ade80", bg:"rgba(74,222,128,0.12)", border:"rgba(74,222,128,0.35)" },
+    correctResult: { label:"✓ Correct Result", color:"#93c5fd", bg:"rgba(96,165,250,0.10)", border:"rgba(96,165,250,0.3)"  },
+    wrong:         { label:"✗ Wrong",          color:"#ff7088", bg:"rgba(204,16,32,0.10)",  border:"rgba(204,16,32,0.3)"   },
+    none:          { label:"— No pick",        color:"#5A7AA0", bg:"rgba(255,255,255,0.03)",border:"rgba(255,255,255,0.1)" },
+    pending:       { label:"⏳ Pending",       color:"#5A7AA0", bg:"rgba(255,255,255,0.03)",border:"rgba(255,255,255,0.08)"},
+  };
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title"><span className="section-title-star">★</span> My Picks <span className="section-title-star">★</span></div>
+        <div className="section-rule"/>
+        <div className="section-sub">{player}</div>
+      </div>
+
+      {/* Score summary cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,marginBottom:20}}>
+        {[
+          {label:"Total Pts",   val:myScore.total||0,   color:"var(--red)"},
+          {label:"Correct ★",  val:correctScores,       color:"#4ade80"},
+          {label:"Correct ✓",  val:correctResults,      color:"#93c5fd"},
+          {label:"Wrong",       val:wrong,               color:"#ff7088"},
+          {label:"Pending",     val:pending,             color:"#5A7AA0"},
+        ].map(s=>(
+          <div key={s.label} style={{background:"var(--card-bg)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:4,padding:"12px 16px",textAlign:"center",backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px)"}}>
+            <div style={{fontFamily:"Anton,sans-serif",fontSize:30,color:s.color,lineHeight:1}}>{s.val}</div>
+            <div style={{fontFamily:"Oswald,sans-serif",fontSize:10,letterSpacing:2,color:"var(--silver)",marginTop:2}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter buttons */}
+      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+        {[["all",`All (${allMatches.length})`],["correct",`Correct (${correctScores+correctResults})`],["wrong",`Wrong (${wrong})`],["pending",`Pending (${pending})`]].map(([k,l])=>(
+          <button key={k} className={`btn btn-sm ${filter===k?"btn-gold":"btn-pitch"}`} onClick={()=>setFilter(k)}>{l}</button>
+        ))}
+      </div>
+
+      {filtered.length===0&&<div className="empty">No matches in this filter.</div>}
+
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {filtered.map(match=>{
+          const outcome = getOutcome(match);
+          const pred = (game.predictions[match.id]||{})[player];
+          const pts = getMatchPts(match, outcome);
+          const oc = OUTCOMES[outcome];
+          const [hT,aT] = match.teams?.includes(" v ")?match.teams.split(" v "):[match.teams,""];
+          return (
+            <div key={match.id} style={{background:"var(--card-bg)",border:`1px solid ${oc.border}`,borderRadius:4,overflow:"hidden",backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderLeft:`5px solid ${oc.border}`}}>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:15,color:"var(--cream)",textTransform:"uppercase",letterSpacing:0.5}}>{match.teams}</div>
+                  <div style={{fontSize:11,color:"var(--silver)",marginTop:2}}>{match.kickoff?formatKickoff(match.kickoff):""}{match.result&&<span style={{marginLeft:8,color:"var(--red)",fontFamily:"Anton,sans-serif",letterSpacing:1}}>Result: {match.score}</span>}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+                  <div style={{display:"inline-block",padding:"3px 10px",borderRadius:4,fontSize:12,fontFamily:"Oswald,sans-serif",fontWeight:700,background:oc.bg,color:oc.color,border:`1px solid ${oc.border}`}}>{oc.label}</div>
+                  {pts>0&&<div style={{fontFamily:"Anton,sans-serif",fontSize:20,color:oc.color,lineHeight:1,marginTop:4}}>+{pts} pts</div>}
+                </div>
+              </div>
+              {pred&&(
+                <div style={{padding:"6px 14px 10px",borderTop:`1px solid ${oc.border}`,fontSize:13,color:"var(--silver)"}}>
+                  <span style={{fontFamily:"Oswald,sans-serif",fontWeight:600,color:"var(--cream)"}}>
+                    My pick: {pred.result==="H"?hT:pred.result==="A"?aT:"Draw"} · {pred.score||"?-?"}
+                  </span>
+                  {pred.late&&<span style={{marginLeft:8,color:"var(--red)",fontSize:11}}>late</span>}
+                </div>
+              )}
+              {!pred&&match.result===undefined&&<div style={{padding:"6px 14px 10px",fontSize:12,color:"var(--silver)",fontStyle:"italic"}}>No prediction entered yet.</div>}
+              {!pred&&match.result&&<div style={{padding:"6px 14px 10px",fontSize:12,color:"#ff7088",fontStyle:"italic"}}>No prediction — 0 pts.</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── MATCH DAY RECAP ──────────────────────────────────────────────────────────
+function RecapView({ game }) {
+  const allMatches = [...(game.matches||[])].sort((a,b)=>new Date(a.kickoff||0)-new Date(b.kickoff||0));
+
+  // Group into match days by date
+  const days = {};
+  allMatches.forEach(m => {
+    if (!m.kickoff) return;
+    const dk = new Date(m.kickoff).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+    if (!days[dk]) days[dk] = [];
+    days[dk].push(m);
+  });
+
+  // Find days that have at least one result — show most recent first
+  const completedDays = Object.entries(days)
+    .filter(([,ms]) => ms.some(m=>m.result))
+    .reverse(); // most recent first
+
+  const [selDay, setSelDay] = useState(completedDays[0]?.[0]||"");
+
+  if (completedDays.length===0) return (
+    <div className="page"><div className="empty">No results entered yet — check back after matches kick off.</div></div>
+  );
+
+  const dayMatches = days[selDay]||[];
+
+  function getOutcome(match, player) {
+    if (!match.result) return "pending";
+    const pred = (game.predictions[match.id]||{})[player];
+    if (!pred||pred.result==="x") return "none";
+    if (pred.result!==match.result) return "wrong";
+    const perfect = match.stage==="group"?pred.score===match.score:isPerfectScore(pred.score,match.score);
+    return perfect?"correctScore":"correctResult";
+  }
+
+  function getDayPts(player) {
+    return dayMatches.reduce((sum, m) => {
+      if (!m.result) return sum;
+      const o = getOutcome(m, player);
+      if (o==="correctScore") return sum + (m.stage==="group"?8:(KNOCKOUT_ROUNDS.find(r=>r.id===m.round)?.correctScore||0));
+      if (o==="correctResult") return sum + (m.stage==="group"?3:(KNOCKOUT_ROUNDS.find(r=>r.id===m.round)?.correctResult||0));
+      return sum;
+    }, 0);
+  }
+
+  const rankedPlayers = [...game.players].sort((a,b)=>getDayPts(b)-getDayPts(a));
+  const OC = { correctScore:"#4ade80", correctResult:"#93c5fd", wrong:"#ff7088", none:"#5A7AA0", pending:"#5A7AA0" };
+  const OL = { correctScore:"★", correctResult:"✓", wrong:"✗", none:"—", pending:"·" };
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title"><span className="section-title-star">★</span> Match Day Recap <span className="section-title-star">★</span></div>
+        <div className="section-rule"/>
+      </div>
+
+      {/* Day selector */}
+      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+        {completedDays.map(([dk])=>(
+          <button key={dk} className={`btn btn-sm ${selDay===dk?"btn-gold":"btn-pitch"}`} onClick={()=>setSelDay(dk)}>{dk}</button>
+        ))}
+      </div>
+
+      {/* Results for this day */}
+      <div style={{marginBottom:20}}>
+        {dayMatches.filter(m=>m.result).map(m=>(
+          <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",background:"var(--card-bg)",borderLeft:"4px solid var(--red)",marginBottom:6,borderRadius:2,backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px)"}}>
+            <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,color:"var(--cream)",fontSize:15,textTransform:"uppercase"}}>{m.teams}</span>
+            <span style={{fontFamily:"Anton,sans-serif",fontSize:20,color:"var(--red)",letterSpacing:2}}>{m.score}</span>
+          </div>
+        ))}
+        {dayMatches.some(m=>!m.result)&&<div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",marginTop:4}}>{dayMatches.filter(m=>!m.result).length} match(es) still pending results.</div>}
+      </div>
+
+      {/* Player scorecard */}
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead>
+            <tr style={{background:"var(--ink)",borderBottom:"2px solid var(--red)"}}>
+              <th style={{padding:"8px 14px",textAlign:"left",fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"rgba(255,255,255,0.4)",fontWeight:700}}>PLAYER</th>
+              {dayMatches.filter(m=>m.result).map(m=>(
+                <th key={m.id} style={{padding:"8px 8px",textAlign:"center",fontFamily:"Oswald,sans-serif",fontSize:10,letterSpacing:1,color:"rgba(255,255,255,0.4)",fontWeight:700,maxWidth:80,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.teams}</th>
+              ))}
+              <th style={{padding:"8px 14px",textAlign:"right",fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"rgba(255,255,255,0.4)",fontWeight:700}}>DAY PTS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rankedPlayers.map((player, idx)=>(
+              <tr key={player} style={{background:idx%2===0?"var(--card-bg)":"rgba(14,30,56,0.6)",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                <td style={{padding:"10px 14px",fontFamily:"Oswald,sans-serif",fontWeight:700,color:"var(--cream)",fontSize:15}}>
+                  {idx===0&&<span style={{color:"var(--red)",marginRight:6}}>★</span>}{player}
+                </td>
+                {dayMatches.filter(m=>m.result).map(m=>{
+                  const o = getOutcome(m, player);
+                  const pred = (game.predictions[m.id]||{})[player];
+                  return (
+                    <td key={m.id} style={{padding:"10px 8px",textAlign:"center"}}>
+                      <div style={{fontSize:16,color:OC[o]}} title={pred?`${pred.result==="H"?m.teams.split(" v ")[0]:pred.result==="A"?m.teams.split(" v ")[1]:"Draw"} · ${pred.score||"?"}`:""}>
+                        {OL[o]}
+                      </div>
+                      {pred&&<div style={{fontSize:10,color:"var(--silver)",fontFamily:"Oswald,sans-serif"}}>{pred.score||"?"}</div>}
+                    </td>
+                  );
+                })}
+                <td style={{padding:"10px 14px",textAlign:"right",fontFamily:"Anton,sans-serif",fontSize:22,color:idx===0?"var(--red)":"var(--cream)"}}>{getDayPts(player)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{marginTop:16,display:"flex",gap:16,flexWrap:"wrap",fontSize:12,color:"var(--silver)"}}>
+        <span><span style={{color:"#4ade80"}}>★</span> Correct score (+8/+more in knockouts)</span>
+        <span><span style={{color:"#93c5fd"}}>✓</span> Correct result (+3/+less in knockouts)</span>
+        <span><span style={{color:"#ff7088"}}>✗</span> Wrong</span>
+        <span><span style={{color:"#5A7AA0"}}>—</span> No pick</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [appState, setAppState] = useState("loading");
@@ -4550,7 +4815,9 @@ export default function App() {
 
   const nav = [
     {id:"leaderboard",l:"Standings"},
+    {id:"mypicks",l:"My Picks"},
     {id:"matches",l:"Matches"},
+    {id:"recap",l:"Recap"},
     {id:"tournies",l:"Tournies"},
     {id:"chaos",l:"Chaos Ledger"},
     {id:"killer",l:"⚔ Killer"},
@@ -4598,7 +4865,9 @@ export default function App() {
       </header>
 
       {view==="leaderboard" && <Leaderboard game={game} />}
+      {view==="mypicks"     && <MyPicksView game={game} session={session} />}
       {view==="matches"     && <MatchesView game={game} dispatch={dispatch} session={session} />}
+      {view==="recap"       && <RecapView game={game} />}
       {view==="tournies"    && <TournieView game={game} dispatch={dispatch} session={session} />}
       {view==="chaos"       && <ChaosView game={game} />}
       {view==="killer"      && <KillerView game={game} dispatch={dispatch} session={session} />}
