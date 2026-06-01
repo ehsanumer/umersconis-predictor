@@ -1282,6 +1282,7 @@ function Leaderboard({ game }) {
                 <div>
                   <div className="lb-name">{player}{nu>0&&<span className="lb-badge badge-umer">U×{nu}</span>}{nf>0&&<span className="lb-badge badge-fine">F×{nf}</span>}</div>
                   <div className="lb-name-sub">{s.correctScores} perfect score{s.correctScores!==1?"s":""}</div>
+                  <FormStrip dots={getPlayerForm(game,player)}/>
                 </div>
                 <div className="lb-score">{s.total.toLocaleString()}</div>
                 <div className="lb-component">{s.base.toLocaleString()}</div>
@@ -4710,6 +4711,315 @@ function RecapView({ game }) {
   );
 }
 
+// ─── SHARED HELPERS ───────────────────────────────────────────────────────────
+function getPlayerForm(game, player, n=6) {
+  const sorted = [...(game.matches||[])].filter(m=>m.result)
+    .sort((a,b)=>new Date(b.kickoff||0)-new Date(a.kickoff||0));
+  return sorted.slice(0,n).map(m=>{
+    const pred = (game.predictions[m.id]||{})[player];
+    if (!pred||pred.result==="x") return "none";
+    if (pred.result!==m.result) return "wrong";
+    const perfect = m.stage==="group"?pred.score===m.score:isPerfectScore(pred.score,m.score);
+    return perfect?"cs":"cr";
+  });
+}
+
+const FORM_STYLES = {
+  cs:   {bg:"#4ade80",title:"Correct score"},
+  cr:   {bg:"#93c5fd",title:"Correct result"},
+  wrong:{bg:"#ff7088",title:"Wrong"},
+  none: {bg:"#5A7AA0",title:"No pick"},
+};
+
+function FormStrip({ dots }) {
+  if (!dots.length) return null;
+  return (
+    <div style={{display:"flex",gap:3,marginTop:4}}>
+      {[...dots].reverse().map((d,i)=>(
+        <div key={i} title={FORM_STYLES[d]?.title} style={{width:8,height:8,borderRadius:2,background:FORM_STYLES[d]?.bg||"#333",flexShrink:0}}/>
+      ))}
+    </div>
+  );
+}
+
+// ─── HEAD-TO-HEAD ─────────────────────────────────────────────────────────────
+function HeadToHeadView({ game }) {
+  const [p1, setP1] = useState(game.players[0]||"");
+  const [p2, setP2] = useState(game.players[1]||"");
+  const scored = [...(game.matches||[])].filter(m=>m.result)
+    .sort((a,b)=>new Date(a.kickoff||0)-new Date(b.kickoff||0));
+
+  function getOutcome(match, player) {
+    const pred = (game.predictions[match.id]||{})[player];
+    if (!pred||pred.result==="x") return {label:"—",pts:0,rank:0};
+    if (pred.result!==match.result) return {label:"✗",pts:0,rank:0,color:"#ff7088"};
+    const perfect = match.stage==="group"?pred.score===match.score:isPerfectScore(pred.score,match.score);
+    const pts = perfect?(match.stage==="group"?8:(KNOCKOUT_ROUNDS.find(r=>r.id===match.round)?.correctScore||0))
+                       :(match.stage==="group"?3:(KNOCKOUT_ROUNDS.find(r=>r.id===match.round)?.correctResult||0));
+    return {label:perfect?"★":"✓",pts,rank:perfect?2:1,color:perfect?"#4ade80":"#93c5fd"};
+  }
+
+  function h2hWinner(o1, o2) {
+    if (o1.rank > o2.rank) return "p1";
+    if (o2.rank > o1.rank) return "p2";
+    return "draw";
+  }
+
+  const results = scored.map(m=>({match:m, o1:getOutcome(m,p1), o2:getOutcome(m,p2)}));
+  const p1wins = results.filter(r=>h2hWinner(r.o1,r.o2)==="p1").length;
+  const p2wins = results.filter(r=>h2hWinner(r.o1,r.o2)==="p2").length;
+  const draws  = results.filter(r=>h2hWinner(r.o1,r.o2)==="draw").length;
+  const p1total = results.reduce((s,r)=>s+r.o1.pts,0);
+  const p2total = results.reduce((s,r)=>s+r.o2.pts,0);
+
+  const col = p => p==="p1"?"rgba(204,16,32,0.15)":p==="p2"?"rgba(96,165,250,0.12)":"rgba(255,255,255,0.03)";
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title"><span className="section-title-star">★</span> Head to Head <span className="section-title-star">★</span></div>
+        <div className="section-rule"/>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:12,alignItems:"center",marginBottom:20}}>
+        <select className="admin-input" style={{fontSize:16,fontFamily:"Oswald,sans-serif",fontWeight:700}} value={p1} onChange={e=>setP1(e.target.value)}>
+          {game.players.map(p=><option key={p}>{p}</option>)}
+        </select>
+        <span style={{fontFamily:"Anton,sans-serif",fontSize:22,color:"var(--red)",letterSpacing:2}}>VS</span>
+        <select className="admin-input" style={{fontSize:16,fontFamily:"Oswald,sans-serif",fontWeight:700}} value={p2} onChange={e=>setP2(e.target.value)}>
+          {game.players.filter(p=>p!==p1).map(p=><option key={p}>{p}</option>)}
+        </select>
+      </div>
+
+      {scored.length===0 ? (
+        <div className="empty">No results yet — check back once matches have been played.</div>
+      ) : (
+        <>
+          {/* Overall scoreline */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:16,marginBottom:20,textAlign:"center"}}>
+            <div style={{background:p1wins>p2wins?"rgba(204,16,32,0.15)":"var(--card-bg)",borderRadius:4,padding:"16px 12px",border:`1px solid ${p1wins>p2wins?"rgba(204,16,32,0.4)":"rgba(255,255,255,0.07)"}`}}>
+              <div style={{fontFamily:"Anton,sans-serif",fontSize:48,color:"var(--red)",lineHeight:1}}>{p1wins}</div>
+              <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14,color:"var(--cream)",marginTop:4}}>{p1}</div>
+              <div style={{fontSize:11,color:"var(--silver)",marginTop:2}}>{p1total} pts from these matches</div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:4}}>
+              <div style={{fontFamily:"Anton,sans-serif",fontSize:20,color:"var(--silver)"}}>{draws}</div>
+              <div style={{fontSize:10,color:"var(--silver)",letterSpacing:2,fontFamily:"Oswald,sans-serif"}}>TIES</div>
+            </div>
+            <div style={{background:p2wins>p1wins?"rgba(96,165,250,0.12)":"var(--card-bg)",borderRadius:4,padding:"16px 12px",border:`1px solid ${p2wins>p1wins?"rgba(96,165,250,0.4)":"rgba(255,255,255,0.07)"}`}}>
+              <div style={{fontFamily:"Anton,sans-serif",fontSize:48,color:"#93c5fd",lineHeight:1}}>{p2wins}</div>
+              <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14,color:"var(--cream)",marginTop:4}}>{p2}</div>
+              <div style={{fontSize:11,color:"var(--silver)",marginTop:2}}>{p2total} pts from these matches</div>
+            </div>
+          </div>
+
+          {/* Match-by-match */}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {results.map(({match,o1,o2})=>{
+              const winner = h2hWinner(o1,o2);
+              return (
+                <div key={match.id} style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center",background:col(winner),border:"1px solid rgba(255,255,255,0.06)",borderRadius:4,padding:"8px 12px",backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px)"}}>
+                  <div style={{textAlign:"left"}}>
+                    <span style={{fontSize:18,color:o1.color||"var(--silver)",marginRight:6}}>{o1.label}</span>
+                    <span style={{fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--silver)"}}>
+                      {o1.label!=="—"&&((game.predictions[match.id]||{})[p1]?.score||"")}
+                    </span>
+                    {o1.pts>0&&<span style={{fontSize:12,color:o1.color,marginLeft:6}}>+{o1.pts}</span>}
+                  </div>
+                  <div style={{textAlign:"center",minWidth:0}}>
+                    <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:11,color:"var(--cream)",textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{match.teams}</div>
+                    <div style={{fontFamily:"Anton,sans-serif",fontSize:14,color:"var(--red)",marginTop:2}}>{match.score}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    {o2.pts>0&&<span style={{fontSize:12,color:o2.color,marginRight:6}}>+{o2.pts}</span>}
+                    <span style={{fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--silver)"}}>
+                      {o2.label!=="—"&&((game.predictions[match.id]||{})[p2]?.score||"")}
+                    </span>
+                    <span style={{fontSize:18,color:o2.color||"var(--silver)",marginLeft:6}}>{o2.label}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── AWARDS ───────────────────────────────────────────────────────────────────
+function AwardsView({ game }) {
+  const scores = calcScores(game);
+  const players = game.players;
+  const matches = [...(game.matches||[])].filter(m=>m.result).sort((a,b)=>new Date(a.kickoff||0)-new Date(b.kickoff||0));
+  const groupMatches = matches.filter(m=>m.stage==="group");
+  const koMatches = matches.filter(m=>m.stage==="knockout");
+
+  function getPred(matchId, player) { return (game.predictions[matchId]||{})[player]; }
+
+  function playerStat(player) {
+    let cs=0,cr=0,wrong=0,noPick=0,groupPts=0,koPts=0,maxStreak=0,streak=0;
+    matches.forEach(m=>{
+      const pred = getPred(m.id,player);
+      if (!pred||pred.result==="x") { noPick++; streak=0; return; }
+      if (pred.result!==m.result) { wrong++; streak=0; return; }
+      const perfect = m.stage==="group"?pred.score===m.score:isPerfectScore(pred.score,m.score);
+      const pts = perfect?(m.stage==="group"?8:(KNOCKOUT_ROUNDS.find(r=>r.id===m.round)?.correctScore||0))
+                         :(m.stage==="group"?3:(KNOCKOUT_ROUNDS.find(r=>r.id===m.round)?.correctResult||0));
+      if (m.stage==="group") groupPts+=pts; else koPts+=pts;
+      if (perfect) cs++; else cr++;
+      streak++;
+      maxStreak=Math.max(maxStreak,streak);
+    });
+    const total = scores[player]?.total||0;
+    const halfwayIdx = Math.floor(groupMatches.length/2);
+    let halfwayPts = 0;
+    groupMatches.slice(0,halfwayIdx).forEach(m=>{
+      const pred=getPred(m.id,player);
+      if (!pred||pred.result==="x") return;
+      if (pred.result!==m.result) return;
+      const perfect=pred.score===m.score;
+      halfwayPts += perfect?8:3;
+    });
+    return {cs,cr,wrong,noPick,groupPts,koPts,maxStreak,total,halfwayPts};
+  }
+
+  const stats = Object.fromEntries(players.map(p=>[p,playerStat(p)]));
+  const best = (fn,higher=true) => players.reduce((best,p)=>!best||(higher?fn(p)>fn(best):fn(p)<fn(best))?p:best,null);
+
+  const awards = [
+    { emoji:"🏆", title:"The Champion",      desc:"Highest total points — the undisputed winner.",                              winner: best(p=>stats[p].total),     detail: p=>`${stats[p].total} pts total` },
+    { emoji:"🎯", title:"The Sharpshooter",  desc:"Most exact correct scores — called the result AND the goals.",               winner: best(p=>stats[p].cs),        detail: p=>`${stats[p].cs} correct scores` },
+    { emoji:"🍀", title:"The Lucky Punter",  desc:"Got the result right but never the score — directionally correct, clueless on goals.", winner: best(p=>stats[p].cr/(stats[p].cs+1)), detail: p=>`${stats[p].cr} correct results, only ${stats[p].cs} exact scores` },
+    { emoji:"⚡", title:"Mr Consistent",     desc:"Longest run of consecutive correct results without a break.",                winner: best(p=>stats[p].maxStreak), detail: p=>`${stats[p].maxStreak} in a row` },
+    { emoji:"👑", title:"Knockout King",     desc:"Dominated when it mattered most — most points in the knockout rounds.",      winner: best(p=>stats[p].koPts),     detail: p=>`${stats[p].koPts} pts in knockouts` },
+    { emoji:"📚", title:"Group Stage Guru",  desc:"Mastered the group stage — most points before the knockouts began.",         winner: best(p=>stats[p].groupPts),  detail: p=>`${stats[p].groupPts} pts in groups` },
+    { emoji:"📈", title:"The Comeback Kid", desc:"Improved the most from halfway through the group stage to the final standings.", winner: best(p=>stats[p].total-stats[p].halfwayPts*2), detail: p=>`Final total: ${stats[p].total} pts` },
+    { emoji:"💀", title:"The Contrarian",   desc:"Wrong more often than anyone — bravely ignored conventional wisdom.",         winner: best(p=>stats[p].wrong),     detail: p=>`${stats[p].wrong} wrong predictions` },
+    { emoji:"👻", title:"The Ghost",        desc:"Submitted the fewest predictions — mysteriously absent for most matches.",    winner: best(p=>stats[p].noPick),    detail: p=>`${stats[p].noPick} matches without a pick` },
+  ].filter(a=>a.winner);
+
+  if (matches.length===0) return (
+    <div className="page"><div className="empty">Awards will be calculated once matches have been played.</div></div>
+  );
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title"><span className="section-title-star">★</span> Awards <span className="section-title-star">★</span></div>
+        <div className="section-rule"/>
+        <div className="section-sub">Based on {matches.length} completed matches</div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
+        {awards.map(a=>(
+          <div key={a.title} style={{background:"var(--card-bg)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:6,padding:"18px 20px",backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px)",borderLeft:"4px solid var(--red)"}}>
+            <div style={{fontSize:32,lineHeight:1,marginBottom:8}}>{a.emoji}</div>
+            <div style={{fontFamily:"Anton,sans-serif",fontSize:18,letterSpacing:2,color:"var(--cream)",marginBottom:2}}>{a.title.toUpperCase()}</div>
+            <div style={{fontSize:12,color:"var(--silver)",marginBottom:12,fontStyle:"italic"}}>{a.desc}</div>
+            <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:20,color:"var(--red)"}}>{a.winner}</div>
+            <div style={{fontSize:12,color:"var(--silver)",marginTop:2}}>{a.detail(a.winner)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── BRACKET ──────────────────────────────────────────────────────────────────
+function BracketView({ game, session }) {
+  const player = session.username;
+  const koRounds = [
+    {id:"r32",  label:"Round of 32"},
+    {id:"r16",  label:"Round of 16"},
+    {id:"qf",   label:"Quarter-finals"},
+    {id:"sf",   label:"Semi-finals"},
+    {id:"final",label:"Final"},
+  ];
+  const thirdPlace = (game.matches||[]).find(m=>m.round==="third");
+
+  const matchesByRound = {};
+  koRounds.forEach(r=>{ matchesByRound[r.id]=(game.matches||[]).filter(m=>m.round===r.id); });
+
+  function getOutcome(match) {
+    if (!match.result) return null;
+    const pred = (game.predictions[match.id]||{})[player];
+    if (!pred||pred.result==="x") return "none";
+    if (pred.result!==match.result) return "wrong";
+    return isPerfectScore(pred.score,match.score)?"cs":"cr";
+  }
+
+  const OC = {cs:"#4ade80",cr:"#93c5fd",wrong:"#ff7088",none:"#5A7AA0"};
+  const OL = {cs:"★",cr:"✓",wrong:"✗",none:"—"};
+
+  function MatchSlot({match}) {
+    if (!match) return <div style={{height:52,background:"rgba(255,255,255,0.02)",borderRadius:3,border:"1px dashed rgba(255,255,255,0.08)"}}/>;
+    const o = getOutcome(match);
+    const pred = (game.predictions[match.id]||{})[player];
+    const [h,a] = match.teams?.includes(" v ")?match.teams.split(" v "):[match.teams||"TBD","TBD"];
+    return (
+      <div style={{background:"var(--card-bg)",border:`1px solid ${o?OC[o]+"66":"rgba(255,255,255,0.08)"}`,borderRadius:3,padding:"6px 10px",backgroundImage:"repeating-linear-gradient(135deg,transparent 0,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
+          <div style={{minWidth:0}}>
+            <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:11,color:"var(--cream)",textTransform:"uppercase",letterSpacing:0.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h}</div>
+            <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:11,color:"var(--silver)",textTransform:"uppercase",letterSpacing:0.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a}</div>
+          </div>
+          <div style={{textAlign:"right",flexShrink:0}}>
+            {match.result&&<div style={{fontFamily:"Anton,sans-serif",fontSize:14,color:"var(--red)"}}>{match.score}</div>}
+            {o&&<div style={{fontSize:14,color:OC[o]}}>{OL[o]}</div>}
+            {pred&&<div style={{fontSize:9,color:"var(--silver)",fontFamily:"Oswald,sans-serif"}}>{pred.score||"?"}</div>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const hasKO = (game.matches||[]).some(m=>m.stage==="knockout");
+  if (!hasKO) return (
+    <div className="page"><div className="empty">The knockout bracket will appear once the group stage is complete.</div></div>
+  );
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title"><span className="section-title-star">★</span> Bracket <span className="section-title-star">★</span></div>
+        <div className="section-rule"/>
+        <div className="section-sub">Your predictions vs actual results</div>
+      </div>
+
+      <div style={{fontSize:12,color:"var(--silver)",marginBottom:16,display:"flex",gap:16,flexWrap:"wrap"}}>
+        <span><span style={{color:"#4ade80"}}>★</span> Correct score</span>
+        <span><span style={{color:"#93c5fd"}}>✓</span> Correct result</span>
+        <span><span style={{color:"#ff7088"}}>✗</span> Wrong</span>
+      </div>
+
+      <div style={{overflowX:"auto",paddingBottom:8}}>
+        <div style={{display:"flex",gap:8,minWidth:"max-content",alignItems:"flex-start"}}>
+          {koRounds.map(round=>{
+            const ms = matchesByRound[round.id]||[];
+            if (!ms.length) return null;
+            return (
+              <div key={round.id} style={{minWidth:170}}>
+                <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:11,letterSpacing:2,color:"var(--red)",marginBottom:8,textTransform:"uppercase"}}>{round.label}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {ms.map(m=><MatchSlot key={m.id} match={m}/>)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {thirdPlace&&(
+        <div style={{marginTop:20,maxWidth:240}}>
+          <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:11,letterSpacing:2,color:"var(--silver)",marginBottom:8}}>3RD PLACE</div>
+          <MatchSlot match={thirdPlace}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [appState, setAppState] = useState("loading");
@@ -4818,6 +5128,9 @@ export default function App() {
     {id:"mypicks",l:"My Picks"},
     {id:"matches",l:"Matches"},
     {id:"recap",l:"Recap"},
+    {id:"h2h",l:"H2H"},
+    {id:"awards",l:"🏆 Awards"},
+    {id:"bracket",l:"🔲 Bracket"},
     {id:"tournies",l:"Tournies"},
     {id:"chaos",l:"Chaos Ledger"},
     {id:"killer",l:"⚔ Killer"},
@@ -4868,6 +5181,9 @@ export default function App() {
       {view==="mypicks"     && <MyPicksView game={game} session={session} />}
       {view==="matches"     && <MatchesView game={game} dispatch={dispatch} session={session} />}
       {view==="recap"       && <RecapView game={game} />}
+      {view==="h2h"         && <HeadToHeadView game={game} />}
+      {view==="awards"      && <AwardsView game={game} />}
+      {view==="bracket"     && <BracketView game={game} session={session} />}
       {view==="tournies"    && <TournieView game={game} dispatch={dispatch} session={session} />}
       {view==="chaos"       && <ChaosView game={game} />}
       {view==="killer"      && <KillerView game={game} dispatch={dispatch} session={session} />}
