@@ -42,9 +42,10 @@ const GlobalStyles = () => (
     .logo { font-family: 'Anton', sans-serif; font-size: 26px; letter-spacing: 3px; color: var(--cream); line-height: 1; white-space: nowrap; }
     .logo span { color: var(--red); }
     .game-badge { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 2px; color: var(--silver); border: 1px solid rgba(204,16,32,0.3); padding: 3px 10px; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-    .nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+    .nav-wrap { flex: 1; min-width: 0; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); }
+    .nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding: 0 16px; }
     .nav::-webkit-scrollbar { display: none; }
-    .nav-btn { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 13px; padding: 8px 12px; border: none; background: transparent; color: var(--silver); cursor: pointer; transition: all 0.2s; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .nav-btn { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 1.4px; font-size: 12px; padding: 8px 9px; border: none; background: transparent; color: var(--silver); cursor: pointer; transition: all 0.2s; border-bottom: 3px solid transparent; white-space: nowrap; flex-shrink: 0; }
     .nav-btn:hover { color: var(--cream); }
     .nav-btn.active { color: var(--cream); border-bottom-color: var(--red); }
     .nav-btn.admin { color: var(--red); }
@@ -306,7 +307,8 @@ const GlobalStyles = () => (
       .header-inner { padding: 0 8px; gap: 4px; height: auto; min-height: 56px; flex-wrap: wrap; padding: 6px 8px; }
       .logo { font-size: 18px; letter-spacing: 1px; flex-shrink: 0; }
       .game-badge { display: none; }
-      .nav { order: 3; width: 100%; border-top: 1px solid rgba(204,16,32,0.15); padding-top: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .nav-wrap { order: 3; width: 100%; flex: none; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%); }
+      .nav { border-top: 1px solid rgba(204,16,32,0.15); padding: 4px 10px 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
       .nav-btn { font-size: 11px; padding: 5px 7px; letter-spacing: 1px; }
       .user-pill { flex-shrink: 0; }
       .user-pill strong { display: none; }
@@ -5159,15 +5161,17 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="header-inner">
-          <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0,overflow:"hidden"}}>
             <div className="logo" style={{cursor:"pointer"}} onClick={handleLeaveGame}>Umer<span>sconi</span></div>
             <div className="game-badge" title={game?.name}>{game?.name}</div>
           </div>
-          <nav className="nav">
-            {nav.map(n=>(
-              <button key={n.id} className={`nav-btn ${n.cls||""} ${view===n.id?"active":""}`} onClick={()=>setView(n.id)}>{n.l}</button>
-            ))}
-          </nav>
+          <div className="nav-wrap">
+            <nav className="nav">
+              {nav.map(n=>(
+                <button key={n.id} className={`nav-btn ${n.cls||""} ${view===n.id?"active":""}`} onClick={()=>setView(n.id)}>{n.l}</button>
+              ))}
+            </nav>
+          </div>
           <div className="user-pill">
             <strong>{session?.username}</strong>
             {isAdmin&&<span className="admin-badge">ADMIN</span>}
