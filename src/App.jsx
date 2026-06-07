@@ -433,6 +433,8 @@ function makeGameState(name, adminUsername) {
     killerRounds: [],
     miniGames: [],
     matchDays: [],
+    lockedResults: {},            // { matchId: true } — prevents auto-sync from overwriting
+    resultSyncLog: [],            // [{ timestamp, matchId, teams, from:{result,score}|null, to:{result,score}, source:"cron"|"manual" }]
     autopilot: {
       enabled: false,
       personalityBrief: "",       // WhatsApp excerpts + player dynamics
@@ -1417,6 +1419,33 @@ function gameReducer(state, action) {
       return { ...state, matches:[...(state.matches||[]), ...action.matches.filter(m=>!ids.has(m.id))] };
     }
     case "ENTER_RESULT": return { ...state, matches:(state.matches||[]).map(m=>m.id===action.matchId?{...m,result:action.result,score:action.score}:m) };
+    case "SYNC_RESULTS": {
+      const locked = state.lockedResults || {};
+      const log = [...(state.resultSyncLog||[])];
+      let changedAny = false;
+      const matches = (state.matches||[]).map(m => {
+        const incoming = (action.results||[]).find(r=>r.matchId===m.id);
+        if (!incoming || locked[m.id]) return m;
+        if (m.result===incoming.result && m.score===incoming.score) return m;
+        const overwriting = !!m.result;
+        log.unshift({
+          timestamp: new Date().toISOString(),
+          matchId: m.id, teams: m.teams,
+          from: overwriting ? { result:m.result, score:m.score } : null,
+          to: { result:incoming.result, score:incoming.score },
+          source: action.source || "manual",
+        });
+        changedAny = true;
+        return { ...m, result:incoming.result, score:incoming.score };
+      });
+      if (!changedAny) return state;
+      return { ...state, matches, resultSyncLog: log.slice(0,49) };
+    }
+    case "TOGGLE_RESULT_LOCK": {
+      const locked = { ...(state.lockedResults||{}) };
+      if (locked[action.matchId]) delete locked[action.matchId]; else locked[action.matchId] = true;
+      return { ...state, lockedResults: locked };
+    }
     case "SET_PREDICTIONS": return { ...state, predictions:{...state.predictions,[action.matchId]:{...(state.predictions[action.matchId]||{}),...action.predictions}} };
     case "TOGGLE_POWERPLAY": {
       const matchPreds = state.predictions[action.matchId] || {};
@@ -4019,8 +4048,17 @@ function ResultsTab({ game, dispatch }) {
       });
       const data = await res.json();
       if (!data.response?.length) { setSyncMsg("No new results available yet."); setSyncing(false); return; }
-      const results = data.response.map(f=>mapApiMatch(f)).filter(m=>m.result);
-      dispatch({ type:"SYNC_RESULTS", results });
+      const results = data.response
+        .map(f=>mapApiMatch(f))
+        .filter(m=>m.result)
+        .map(m => {
+          const [home, away] = m.teams.split(" v ");
+          const gm = findMatchForApiTeams(game.matches, home, away);
+          return gm ? { matchId: gm.id, result: m.result, score: m.score } : null;
+        })
+        .filter(Boolean);
+      if (!results.length) { setSyncMsg("No completed fixtures matched games in this state."); setSyncing(false); return; }
+      dispatch({ type:"SYNC_RESULTS", results, source:"manual" });
       setSyncMsg(`✓ Synced ${results.length} result(s)`);
     } catch(e) { setSyncMsg("✗ "+e.message); }
     setSyncing(false);
@@ -5100,6 +5138,46 @@ function mapApiMatch(fixture) {
   return match;
 }
 
+// ─── TEAM-NAME MATCHING (API-Football naming → our WC2026_FIXTURES naming) ────
+// API-Football sometimes spells team names differently from the canonical names
+// used in our fixtures/squads data. We normalize + alias-map both sides so a
+// fixture can be matched to "our" match purely by team names (API fixture IDs
+// don't correspond to our internal "m1"-style match IDs).
+function normalizeTeamName(name) {
+  return (name||"")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g,"")  // strip diacritics
+    .replace(/&/g,"and")
+    .replace(/[^a-z0-9]+/g," ")
+    .trim();
+}
+const API_TEAM_ALIASES = {
+  "korea republic": "south korea",
+  "czech republic": "czechia",
+  "turkey": "turkiye",
+  "cote divoire": "ivory coast",
+  "cote d ivoire": "ivory coast",
+  "united states": "usa",
+  "united states of america": "usa",
+  "congo dr": "dr congo",
+  "democratic republic of the congo": "dr congo",
+  "cabo verde": "cape verde",
+};
+function aliasNorm(name) {
+  const n = normalizeTeamName(name);
+  return API_TEAM_ALIASES[n] || n;
+}
+// Finds the internal match ({id, teams:"Home v Away"}) that corresponds to an
+// API fixture's home/away team names, tolerating naming variants.
+function findMatchForApiTeams(matches, homeApi, awayApi) {
+  const h = aliasNorm(homeApi), a = aliasNorm(awayApi);
+  return (matches||[]).find(m => {
+    if (!m.teams?.includes(" v ")) return false;
+    const [mh, ma] = m.teams.split(" v ");
+    return aliasNorm(mh)===h && aliasNorm(ma)===a;
+  }) || null;
+}
+
 function FixtureSync({ game, dispatch }) {
   const [log, setLog] = useState([]);
   const [syncing, setSyncing] = useState(false);
@@ -5128,9 +5206,15 @@ function FixtureSync({ game, dispatch }) {
       const results = data.response
         .map(f => mapApiMatch(f))
         .filter(m => m.result)
-        .map(m => ({ apiId:m.id, result:m.result, score:m.score }));
-      dispatch({ type:"SYNC_RESULTS", results });
-      addLog(`✓ Updated results for ${results.length} completed matches`);
+        .map(m => {
+          const [home, away] = m.teams.split(" v ");
+          const gm = findMatchForApiTeams(game.matches, home, away);
+          return gm ? { matchId: gm.id, result: m.result, score: m.score } : null;
+        })
+        .filter(Boolean);
+      if (!results.length) { addLog("No completed fixtures matched games in this state"); setSyncing(false); return; }
+      dispatch({ type:"SYNC_RESULTS", results, source:"manual" });
+      addLog(`✓ Synced results for ${results.length} completed matches`);
     } catch(e) {
       addLog(`✗ Error: ${e.message}`);
     }
@@ -5140,7 +5224,7 @@ function FixtureSync({ game, dispatch }) {
   return (
     <div>
       <div className="notice" style={{background:"rgba(201,168,76,0.08)",borderColor:"rgba(201,168,76,0.3)"}}>
-        All 104 World Cup 2026 fixtures are pre-loaded. Live result sync now works via the server proxy — no API key needed in the browser.
+        All 104 World Cup 2026 fixtures are pre-loaded. Results sync automatically via a background cron job (independent of Autopilot) roughly every 30 minutes once matches finish — overwriting manually-entered scores unless locked below. You can also trigger a manual sync any time.
       </div>
       <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:20,flexWrap:"wrap"}}>
         <button className="btn btn-gold" onClick={loadWC2026} disabled={loaded===WC2026_FIXTURES.length}>
@@ -5153,6 +5237,81 @@ function FixtureSync({ game, dispatch }) {
         <span style={{color:"var(--silver)",fontSize:13,fontStyle:"italic"}}>{(game.matches||[]).length} total in this game</span>
       </div>
       {log.length>0&&<div style={{marginTop:14,background:"#0a0a0a",border:"1px solid #222",borderRadius:4,padding:"10px 14px",fontFamily:"monospace",fontSize:11,color:"#aaa",maxHeight:120,overflowY:"auto"}}>{log.map((l,i)=><div key={i}>{l}</div>)}</div>}
+      <ResultLockPanel game={game} dispatch={dispatch} />
+      <ResultSyncAuditLog game={game} />
+    </div>
+  );
+}
+
+// ─── RESULT LOCK PANEL ────────────────────────────────────────────────────────
+// Lets the admin "lock" a match's result so the auto-sync cron (and manual sync)
+// will never overwrite it — a safety net for one-off corrections or edge cases
+// the API gets wrong.
+function ResultLockPanel({ game, dispatch }) {
+  const locked = game.lockedResults || {};
+  const withResults = (game.matches||[]).filter(m=>m.result).sort((a,b)=>new Date(b.kickoff||0)-new Date(a.kickoff||0));
+  const lockedCount = Object.keys(locked).filter(id=>locked[id]).length;
+  if (!withResults.length) return null;
+  return (
+    <div style={{marginTop:24}}>
+      <div style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:2,color:"var(--silver)",marginBottom:8}}>
+        🔒 RESULT LOCKS {lockedCount>0 && <span style={{color:"var(--gold)"}}>({lockedCount} locked)</span>}
+      </div>
+      <div className="notice" style={{background:"rgba(201,168,76,0.06)",borderColor:"rgba(201,168,76,0.2)",fontSize:12,marginBottom:10}}>
+        Locking a result protects it from being overwritten by the auto-sync cron or manual "Sync Latest Results" — use this if the API has a match wrong.
+      </div>
+      <div style={{maxHeight:240,overflowY:"auto",border:"1px solid rgba(201,168,76,0.15)",borderRadius:4}}>
+        {withResults.map(m=>(
+          <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 12px",borderBottom:"1px solid rgba(201,168,76,0.08)",fontSize:13}}>
+            <div>
+              <strong>{m.teams}</strong>
+              <span style={{marginLeft:8,color:"var(--silver)",fontFamily:"monospace"}}>{m.score||m.result}</span>
+            </div>
+            <button
+              className="btn btn-sm"
+              style={locked[m.id]
+                ? {background:"rgba(201,168,76,0.18)",color:"var(--gold)",border:"1px solid rgba(201,168,76,0.4)"}
+                : {background:"rgba(255,255,255,0.04)",color:"var(--silver)",border:"1px solid rgba(255,255,255,0.12)"}}
+              onClick={()=>dispatch({type:"TOGGLE_RESULT_LOCK", matchId:m.id})}
+            >
+              {locked[m.id] ? "🔒 Locked — click to unlock" : "🔓 Unlocked — click to lock"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── RESULT SYNC AUDIT LOG ────────────────────────────────────────────────────
+// Shows a history of automatic/manual result overwrites so the admin can see
+// exactly what changed and where it came from (cron vs. manual sync).
+function ResultSyncAuditLog({ game }) {
+  const log = game.resultSyncLog || [];
+  if (!log.length) return null;
+  return (
+    <div style={{marginTop:24}}>
+      <div style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:2,color:"var(--silver)",marginBottom:8}}>
+        📋 RESULT SYNC AUDIT LOG
+      </div>
+      <div style={{maxHeight:280,overflowY:"auto",border:"1px solid rgba(201,168,76,0.15)",borderRadius:4}}>
+        {log.map((entry,i)=>(
+          <div key={i} style={{padding:"8px 12px",borderBottom:"1px solid rgba(201,168,76,0.08)",fontSize:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:10}}>
+              <strong>{entry.teams}</strong>
+              <span style={{color:"var(--silver)",fontFamily:"monospace",fontSize:11}}>{new Date(entry.timestamp).toLocaleString("en-GB")}</span>
+            </div>
+            <div style={{color:"#999",marginTop:2}}>
+              {entry.from
+                ? <>Overwrote <span style={{fontFamily:"monospace",color:"#e57373"}}>{entry.from.score||entry.from.result}</span> → <span style={{fontFamily:"monospace",color:"#81c784"}}>{entry.to.score||entry.to.result}</span></>
+                : <>Set result to <span style={{fontFamily:"monospace",color:"#81c784"}}>{entry.to.score||entry.to.result}</span></>}
+              <span style={{marginLeft:8,fontFamily:"Oswald,sans-serif",fontSize:10,letterSpacing:1,padding:"1px 6px",borderRadius:2,background:entry.source==="cron"?"rgba(201,168,76,0.18)":"rgba(255,255,255,0.08)",color:entry.source==="cron"?"var(--gold)":"var(--silver)"}}>
+                {entry.source==="cron"?"AUTO-SYNC":"MANUAL"}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
