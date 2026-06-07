@@ -356,15 +356,15 @@ const GlobalStyles = () => (
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const TOURNIE_CATEGORIES = [
-  { id: "winner", label: "Tournament Winner" },
-  { id: "runnerUp", label: "Runners Up" },
-  { id: "playerOfTournament", label: "Player of Tournament" },
-  { id: "bestYoungPlayer", label: "Best Young Player" },
-  { id: "topScorer", label: "Top Scorer" },
-  { id: "mvpGK", label: "MVP — Goalkeeper" },
-  { id: "mvpDEF", label: "MVP — Defender" },
-  { id: "mvpMID", label: "MVP — Midfielder" },
-  { id: "mvpFWD", label: "MVP — Forward" },
+  { id: "winner", label: "Tournament Winner", kind: "team" },
+  { id: "runnerUp", label: "Runners Up", kind: "team" },
+  { id: "playerOfTournament", label: "Player of Tournament", kind: "player" },
+  { id: "bestYoungPlayer", label: "Best Young Player", kind: "player" },
+  { id: "topScorer", label: "Top Scorer", kind: "player" },
+  { id: "mvpGK", label: "MVP — Goalkeeper", kind: "player", position: "GK" },
+  { id: "mvpDEF", label: "MVP — Defender", kind: "player", position: "DF" },
+  { id: "mvpMID", label: "MVP — Midfielder", kind: "player", position: "MF" },
+  { id: "mvpFWD", label: "MVP — Forward", kind: "player", position: "FW" },
 ];
 
 const KNOCKOUT_ROUNDS = [
@@ -578,6 +578,561 @@ const WC2026_FIXTURES = [
   {id:"m103",teams:"3rd Place Play-off",               stage:"knockout", round:"third", kickoff:et("2026-07-18","5:00PM")},
   {id:"m104",teams:"World Cup Final",                  stage:"knockout", round:"final", kickoff:et("2026-07-19","3:00PM")},
 ];
+
+
+// ─── WC2026 SQUADS (official rosters, sourced from Wikipedia, June 2026) ─────
+function ps(lines) {
+  return lines.map(l => {
+    const [num, pos, name, club] = l.split("|");
+    return { number: +num, position: pos, name, club };
+  });
+}
+
+const WC2026_SQUADS = {
+  "Czechia": ps([
+    "1|GK|Matěj Kovář|PSV Eindhoven","2|DF|David Zima|Slavia Prague","3|DF|Tomáš Holeš|Slavia Prague",
+    "4|DF|Robin Hranáč|TSG Hoffenheim","5|DF|Vladimír Coufal|TSG Hoffenheim","6|DF|Štěpán Chaloupek|Slavia Prague",
+    "7|DF|Ladislav Krejčí|Wolverhampton Wanderers","8|MF|Vladimír Darida|Hradec Králové","9|FW|Adam Hložek|TSG Hoffenheim",
+    "10|FW|Patrik Schick|Bayer Leverkusen","11|FW|Jan Kuchta|Sparta Prague","12|MF|Lukáš Červ|Viktoria Plzeň",
+    "13|FW|Mojmír Chytil|Slavia Prague","14|DF|David Jurásek|Slavia Prague","15|FW|Pavel Šulc|Lyon",
+    "16|GK|Jindřich Staněk|Slavia Prague","17|MF|Lukáš Provod|Slavia Prague","18|MF|Michal Sadílek|Slavia Prague",
+    "19|FW|Tomáš Chorý|Slavia Prague","20|DF|Jaroslav Zelený|Sparta Prague","21|DF|David Douděra|Slavia Prague",
+    "22|MF|Tomáš Souček|West Ham United","23|GK|Lukáš Horníček|Braga","24|MF|Alexandr Sojka|Viktoria Plzeň",
+    "25|MF|Hugo Sochůrek|Sparta Prague","26|FW|Denis Višinský|Viktoria Plzeň",
+  ]),
+  "Mexico": ps([
+    "1|GK|Raúl Rangel|Guadalajara","2|DF|Jorge Sánchez|PAOK","3|DF|César Montes|Lokomotiv Moscow",
+    "4|DF|Edson Álvarez|Fenerbahçe","5|DF|Johan Vásquez|Genoa","6|MF|Érik Lira|Cruz Azul",
+    "7|MF|Luis Romo|Guadalajara","8|MF|Álvaro Fidalgo|Real Betis","9|FW|Raúl Jiménez|Fulham",
+    "10|FW|Alexis Vega|Toluca","11|FW|Santiago Giménez|Milan","12|GK|Carlos Acevedo|Santos Laguna",
+    "13|GK|Guillermo Ochoa|AEL Limassol","14|FW|Armando González|Guadalajara","15|DF|Israel Reyes|América",
+    "16|FW|Julián Quiñones|Al-Qadsiah","17|MF|Orbelín Pineda|AEK Athens","18|MF|Obed Vargas|Atlético Madrid",
+    "19|MF|Gilberto Mora|Tijuana","20|DF|Mateo Chávez|AZ","21|FW|César Huerta|Anderlecht",
+    "22|FW|Guillermo Martínez|Pumas","23|DF|Jesús Gallardo|Toluca","24|MF|Luis Chávez|Dynamo Moscow",
+    "25|FW|Roberto Alvarado|Guadalajara","26|MF|Brian Gutiérrez|Guadalajara",
+  ]),
+  "South Africa": ps([
+    "1|GK|Ronwen Williams|Mamelodi Sundowns","2|DF|Thabang Matuludi|Polokwane City","3|DF|Khulumani Ndamane|Mamelodi Sundowns",
+    "4|MF|Teboho Mokoena|Mamelodi Sundowns","5|MF|Thalente Mbatha|Orlando Pirates","6|DF|Aubrey Modiba|Mamelodi Sundowns",
+    "7|FW|Oswin Appollis|Orlando Pirates","8|FW|Tshepang Moremi|Orlando Pirates","9|FW|Lyle Foster|Burnley",
+    "10|FW|Relebohile Mofokeng|Orlando Pirates","11|MF|Themba Zwane|Mamelodi Sundowns","12|FW|Thapelo Maseko|AEL Limassol",
+    "13|MF|Sphephelo Sithole|Tondela","14|DF|Mbekezeli Mbokazi|Chicago Fire","15|FW|Iqraam Rayners|Mamelodi Sundowns",
+    "16|GK|Sipho Chaine|Orlando Pirates","17|FW|Evidence Makgopa|Orlando Pirates","18|DF|Samukele Kabini|Molde",
+    "19|DF|Nkosinathi Sibisi|Orlando Pirates","20|DF|Khuliso Mudau|Mamelodi Sundowns","21|DF|Ime Okon|Hannover 96",
+    "22|GK|Ricardo Goss|Siwelele","23|MF|Jayden Adams|Mamelodi Sundowns","24|DF|Olwethu Makhanya|Philadelphia Union",
+    "25|FW|Kamogelo Sebelebele|Orlando Pirates","26|DF|Bradley Cross|Kaizer Chiefs",
+  ]),
+  "South Korea": ps([
+    "1|GK|Kim Seung-gyu|FC Tokyo","2|DF|Lee Han-beom|Midtjylland","3|MF|Lee Gi-hyuk|Gangwon",
+    "4|DF|Kim Min-jae|Bayern Munich","5|DF|Kim Tae-hyeon|Kashima Antlers","6|MF|Hwang In-beom|Feyenoord",
+    "7|FW|Son Heung-min|Los Angeles FC","8|MF|Paik Seung-ho|Birmingham City","9|FW|Cho Gue-sung|Midtjylland",
+    "10|MF|Lee Jae-sung|Mainz 05","11|MF|Hwang Hee-chan|Wolverhampton Wanderers","12|GK|Song Bum-keun|Jeonbuk Hyundai Motors",
+    "13|DF|Lee Tae-seok|Austria Wien","14|DF|Cho Wi-je|Jeonbuk Hyundai Motors","15|DF|Kim Moon-hwan|Daejeon Hana Citizen",
+    "16|DF|Park Jin-seob|Zhejiang Professional","17|MF|Bae Jun-ho|Stoke City","18|FW|Oh Hyeon-gyu|Beşiktaş",
+    "19|MF|Lee Kang-in|Paris Saint-Germain","20|MF|Yang Hyun-jun|Celtic","21|GK|Jo Hyeon-woo|Ulsan HD",
+    "22|DF|Seol Young-woo|Red Star Belgrade","23|DF|Jens Castrop|Borussia Mönchengladbach","24|MF|Kim Jin-gyu|Jeonbuk Hyundai Motors",
+    "25|MF|Eom Ji-sung|Swansea City","26|MF|Lee Dong-gyeong|Ulsan HD",
+  ]),
+  "Canada": ps([
+    "1|GK|Dayne St. Clair|Inter Miami CF","2|DF|Alistair Johnston|Celtic","3|DF|Alfie Jones|Middlesbrough",
+    "4|DF|Luc de Fougerolles|Dender","5|DF|Joel Waterman|Chicago Fire FC","6|MF|Mathieu Choinière|Los Angeles FC",
+    "7|MF|Stephen Eustáquio|Los Angeles FC","8|MF|Ismaël Koné|Sassuolo","9|FW|Cyle Larin|Southampton",
+    "10|FW|Jonathan David|Juventus","11|MF|Liam Millar|Hull City","12|FW|Tani Oluwaseyi|Villarreal",
+    "13|DF|Derek Cornelius|Rangers","14|MF|Jacob Shaffelburg|Los Angeles FC","16|GK|Maxime Crépeau|Orlando City SC",
+    "17|FW|Tajon Buchanan|Villarreal","18|GK|Owen Goodman|Barnsley","19|DF|Alphonso Davies|Bayern Munich",
+    "20|FW|Ali Ahmed|Norwich City","21|MF|Jonathan Osorio|Toronto FC","22|DF|Richie Laryea|Toronto FC",
+    "23|DF|Niko Sigur|Hajduk Split","24|FW|Promise David|Union Saint-Gilloise","25|MF|Nathan Saliba|Anderlecht",
+  ]),
+  "Bosnia & Herzegovina": ps([
+    "1|GK|Nikola Vasilj|FC St. Pauli","2|DF|Nihad Mujakić|Gaziantep","3|DF|Dennis Hadžikadunić|Sampdoria",
+    "4|DF|Tarik Muharemović|Sassuolo","5|DF|Sead Kolašinac|Atalanta","6|MF|Benjamin Tahirović|Brøndby",
+    "7|DF|Amar Dedić|Benfica","8|MF|Armin Gigović|Young Boys","9|FW|Samed Baždar|Jagiellonia Białystok",
+    "10|FW|Ermedin Demirović|VfB Stuttgart","11|FW|Edin Džeko|Schalke 04","12|GK|Mladen Jurkas|Borac Banja Luka",
+    "13|MF|Ivan Bašić|Astana","14|MF|Ivan Šunjić|Pafos","15|MF|Amar Memić|Viktoria Plzeň",
+    "16|MF|Amir Hadžiahmetović|Hull City","17|MF|Dženis Burnić|Karlsruher SC","18|DF|Nikola Katić|Schalke 04",
+    "19|FW|Kerim Alajbegović|Red Bull Salzburg","20|FW|Esmir Bajraktarević|PSV Eindhoven","21|DF|Stjepan Radeljić|Rijeka",
+    "22|GK|Martin Zlomislić|Rijeka","23|FW|Haris Tabaković|Borussia Mönchengladbach","24|DF|Nidal Čelik|Lens",
+    "25|FW|Jovo Lukić|Universitatea Cluj","26|MF|Ermin Mahmić|Slovan Liberec",
+  ]),
+  "Qatar": ps([
+    "1|GK|Mahmud Abunada|Al-Rayyan","2|DF|Pedro Miguel|Al-Sadd","3|DF|Lucas Mendes|Al-Wakrah",
+    "4|DF|Issa Laye|Al-Arabi","5|DF|Jassem Gaber|Al-Rayyan","6|MF|Abdulaziz Hatem|Al-Rayyan",
+    "7|FW|Ahmed Alaaeldin|Al-Rayyan","8|FW|Edmilson Junior|Al-Duhail","9|FW|Mohammed Muntari|Al-Gharafa",
+    "10|FW|Hassan Al-Haydos|Al-Sadd","11|FW|Akram Afif|Al-Sadd","12|MF|Karim Boudiaf|Al-Duhail",
+    "13|DF|Ayoub Al-Oui|Al-Gharafa","14|DF|Homam Ahmed|Cultural Leonesa","15|FW|Yusuf Abdurisag|Al-Rayyan",
+  ]),
+  "Switzerland": ps([
+    "1|GK|Gregor Kobel|Borussia Dortmund","2|DF|Miro Muheim|Hamburger SV","3|DF|Silvan Widmer|Mainz 05",
+    "4|DF|Nico Elvedi|Borussia Mönchengladbach","5|DF|Manuel Akanji|Inter Milan","6|MF|Denis Zakaria|Monaco",
+    "7|FW|Breel Embolo|Rennes","8|MF|Remo Freuler|Bologna","9|MF|Johan Manzambi|SC Freiburg",
+    "10|MF|Granit Xhaka|Sunderland","11|FW|Dan Ndoye|Nottingham Forest","12|GK|Yvon Mvogo|Lorient",
+    "13|DF|Ricardo Rodriguez|Real Betis","14|MF|Ardon Jashari|Milan","15|MF|Djibril Sow|Sevilla",
+    "16|FW|Christian Fassnacht|Young Boys","17|FW|Rubén Vargas|Sevilla","18|DF|Eray Cömert|Valencia",
+    "19|FW|Noah Okafor|Leeds United","20|MF|Michel Aebischer|Pisa","21|GK|Marvin Keller|Young Boys",
+    "22|MF|Fabian Rieder|FC Augsburg","23|FW|Zeki Amdouni|Burnley","24|DF|Aurèle Amenda|Eintracht Frankfurt",
+    "25|DF|Luca Jaquez|VfB Stuttgart","26|FW|Cedric Itten|Fortuna Düsseldorf",
+  ]),
+  "Brazil": ps([
+    "1|GK|Alisson|Liverpool","2|MF|Éderson Silva|Atalanta","3|DF|Gabriel Magalhães|Arsenal",
+    "4|DF|Marquinhos|Paris Saint-Germain","5|MF|Casemiro|Manchester United","6|DF|Alex Sandro|Flamengo",
+    "7|FW|Vinícius Júnior|Real Madrid","8|MF|Bruno Guimarães|Newcastle United","9|FW|Matheus Cunha|Manchester United",
+    "10|FW|Neymar|Santos","11|FW|Raphinha|Barcelona","12|GK|Weverton|Grêmio",
+    "13|DF|Danilo Luiz|Flamengo","14|DF|Bremer|Juventus","15|DF|Léo Pereira|Flamengo",
+    "16|DF|Douglas Santos|Zenit Saint Petersburg","17|MF|Fabinho|Al-Ittihad","18|MF|Danilo Santos|Botafogo",
+    "19|FW|Endrick|Lyon","20|MF|Lucas Paquetá|Flamengo","21|FW|Luiz Henrique|Zenit Saint Petersburg",
+    "22|FW|Gabriel Martinelli|Arsenal","23|GK|Ederson Moraes|Fenerbahçe","24|DF|Roger Ibañez|Al-Ahli",
+    "25|FW|Igor Thiago|Brentford","26|FW|Rayan|Bournemouth",
+  ]),
+  "Haiti": ps([
+    "1|GK|Johny Placide|SC Bastia","2|DF|Carlens Arcus|Angers SCO","3|DF|Keeto Thermoncy|Young Boys",
+    "4|DF|Ricardo Adé|LDU Quito","5|DF|Hannes Delcroix|FC Lugano","6|MF|Carl Sainté|El Paso Locomotive FC",
+    "7|FW|Derrick Etienne Jr.|Toronto FC","8|DF|Martin Expérience|AS Nancy Lorraine","9|FW|Duckens Nazon|Esteghlal",
+    "10|MF|Jean-Ricner Bellegarde|Wolverhampton Wanderers","11|FW|Louicius Deedson|FC Dallas","12|GK|Alexandre Pierre|FC Sochaux-Montbéliard",
+    "13|DF|Duke Lacroix|Colorado Springs Switchbacks FC","14|MF|Leverton Pierre|Vizela","15|FW|Ruben Providence|Almere City FC",
+    "16|FW|Lenny Joseph|Ferencváros","17|MF|Danley Jean Jacques|Philadelphia Union","18|FW|Wilson Isidor|Sunderland",
+    "19|FW|Yassin Fortuné|Vizela","20|FW|Frantzdy Pierrot|Çaykur Rizespor","21|FW|Josué Casimir|AJ Auxerre",
+    "22|DF|Jean-Kévin Duverne|KAA Gent","23|GK|Josué Duverger|FC Cosmos Koblenz","24|DF|Wilguens Paugain|SV Zulte Waregem",
+    "25|MF|Dominique Simon|1. FC Tatran Prešov","26|MF|Woodensky Pierre|Violette AC",
+  ]),
+  "Morocco": ps([
+    "1|GK|Yassine Bounou|Al-Hilal","2|DF|Achraf Hakimi|Paris Saint-Germain","3|DF|Noussair Mazraoui|Manchester United",
+    "4|MF|Sofyan Amrabat|Real Betis","5|DF|Nayef Aguerd|Marseille","6|MF|Ayyoub Bouaddi|Lille",
+    "7|MF|Chemsdine Talbi|Sunderland","8|MF|Azzedine Ounahi|Girona","9|FW|Soufiane Rahimi|Al Ain",
+    "10|FW|Brahim Díaz|Real Madrid","11|MF|Ismael Saibari|PSV Eindhoven","12|GK|Munir Mohamedi|RS Berkane",
+    "13|DF|Zakaria El Ouahdi|Genk","14|DF|Issa Diop|Fulham","15|MF|Samir El Mourabet|Strasbourg",
+    "16|MF|Gessime Yassine|Strasbourg","17|FW|Abde Ezzalzouli|Real Betis","18|DF|Chadi Riad|Crystal Palace",
+    "19|DF|Youssef Belammari|Al Ahly","20|FW|Ayoub El Kaabi|Olympiacos","21|FW|Ayoube Amaimouni|Eintracht Frankfurt",
+    "22|GK|Ahmed Reda Tagnaouti|AS FAR","23|MF|Bilal El Khannouss|VfB Stuttgart","24|MF|Neil El Aynaoui|Roma",
+    "25|DF|Redouane Halhal|Mechelen","26|DF|Anass Salah-Eddine|PSV Eindhoven",
+  ]),
+  "Scotland": ps([
+    "1|GK|Angus Gunn|Nottingham Forest","2|DF|Aaron Hickey|Brentford","3|DF|Andy Robertson|Liverpool",
+    "4|MF|Scott McTominay|Napoli","5|DF|Grant Hanley|Hibernian","6|DF|Kieran Tierney|Celtic",
+    "7|MF|John McGinn|Aston Villa","8|MF|Tyler Fletcher|Manchester United","9|FW|Lyndon Dykes|Charlton Athletic",
+    "10|FW|Ché Adams|Torino","11|MF|Ryan Christie|Bournemouth","12|GK|Liam Kelly|Rangers",
+    "13|DF|Jack Hendry|Al-Ettifaq","14|FW|Ross Stewart|Southampton","15|DF|John Souttar|Rangers",
+    "16|DF|Dominic Hyam|Wrexham","17|FW|Ben Gannon-Doak|Bournemouth","18|FW|George Hirst|Ipswich Town",
+    "19|MF|Lewis Ferguson|Bologna","20|FW|Lawrence Shankland|Heart of Midlothian","21|GK|Craig Gordon|Heart of Midlothian",
+    "22|DF|Nathan Patterson|Everton","23|MF|Kenny McLean|Norwich City","24|DF|Anthony Ralston|Celtic",
+    "25|FW|Findlay Curtis|Kilmarnock","26|DF|Scott McKenna|Dinamo Zagreb",
+  ]),
+  "USA": ps([
+    "1|GK|Matt Turner|New England Revolution","2|DF|Sergiño Dest|PSV Eindhoven","3|DF|Chris Richards|Crystal Palace",
+    "4|MF|Tyler Adams|Bournemouth","5|DF|Antonee Robinson|Fulham","6|DF|Auston Trusty|Celtic",
+    "7|MF|Giovanni Reyna|Borussia Mönchengladbach","8|MF|Weston McKennie|Juventus","9|FW|Ricardo Pepi|PSV Eindhoven",
+    "10|FW|Christian Pulisic|AC Milan","11|FW|Brenden Aaronson|Leeds United","12|DF|Miles Robinson|FC Cincinnati",
+    "13|DF|Tim Ream|Charlotte FC","14|MF|Sebastian Berhalter|Vancouver Whitecaps","15|MF|Cristian Roldan|Seattle Sounders",
+    "16|DF|Alex Freeman|Villarreal","17|MF|Malik Tillman|Bayer Leverkusen","18|DF|Maximilian Arfsten|Columbus Crew",
+    "19|FW|Haji Wright|Coventry City","20|FW|Folarin Balogun|AS Monaco","21|FW|Timothy Weah|Olympique de Marseille",
+    "22|DF|Mark McKenzie|Toulouse","23|DF|Joe Scally|Borussia Mönchengladbach","24|GK|Matt Freese|New York City FC",
+    "25|GK|Chris Brady|Chicago Fire","26|FW|Alejandro Zendejas|Club América",
+  ]),
+  "Australia": ps([
+    "1|GK|Mathew Ryan|Levante","2|DF|Miloš Degenek|APOEL","3|DF|Alessandro Circati|Parma",
+    "4|DF|Jacob Italiano|Grazer AK","5|DF|Jordan Bos|Feyenoord","6|DF|Jason Geria|Albirex Niigata",
+    "7|FW|Mathew Leckie|Melbourne City","8|MF|Connor Metcalfe|FC St. Pauli","9|FW|Mohamed Touré|Norwich City",
+    "10|FW|Ajdin Hrustic|Heracles Almelo","11|FW|Awer Mabil|Castellón","12|GK|Paul Izzo|Randers",
+    "13|MF|Aiden O'Neill|New York City FC","14|MF|Cammy Devlin|Heart of Midlothian","15|DF|Kai Trewin|New York City FC",
+    "16|DF|Aziz Behich|Melbourne City","17|FW|Nestory Irankunda|Watford","18|GK|Patrick Beach|Melbourne City",
+    "19|DF|Harry Souttar|Leicester City","20|FW|Cristian Volpato|Sassuolo","21|DF|Cameron Burgess|Swansea City",
+    "22|MF|Jackson Irvine|FC St. Pauli","23|FW|Nishan Velupillay|Melbourne Victory","24|MF|Paul Okon-Engstler|Sydney FC",
+    "25|DF|Lucas Herrington|Colorado Rapids","26|FW|Tete Yengi|Machida Zelvia",
+  ]),
+  "Paraguay": ps([
+    "1|GK|Gatito Fernández|Cerro Porteño","2|DF|Gustavo Velázquez|Cerro Porteño","3|DF|Omar Alderete|Sunderland",
+    "4|DF|Juan José Cáceres|Dynamo Moscow","5|DF|Fabián Balbuena|Grêmio","6|DF|Júnior Alonso|Atlético Mineiro",
+    "7|MF|Ramón Sosa|Palmeiras","8|MF|Diego Gómez|Brighton & Hove Albion","9|FW|Antonio Sanabria|Cremonese",
+    "10|MF|Miguel Almirón|Atlanta United","11|MF|Maurício|Palmeiras","12|GK|Orlando Gill|San Lorenzo",
+    "13|DF|José Canale|Lanús","14|MF|Andrés Cubas|Vancouver Whitecaps","15|DF|Gustavo Gómez|Palmeiras",
+    "16|MF|Damián Bobadilla|São Paulo","17|FW|Kaku|Al Ain","18|FW|Álex Arce|Independiente Rivadavia",
+    "19|FW|Julio Enciso|Strasbourg","20|MF|Braian Ojeda|Orlando City","21|FW|Gabriel Ávalos|Independiente",
+    "22|GK|Gastón Olveira|Olimpia","23|MF|Matías Galarza|Atlanta United","24|MF|Gustavo Caballero|Portsmouth",
+    "25|FW|Isidro Pitta|Red Bull Bragantino","26|DF|Alexandro Maidana|Talleres",
+  ]),
+  "Türkiye": ps([
+    "1|GK|Mert Günok|Fenerbahçe","2|DF|Zeki Çelik|AS Roma","3|DF|Merih Demiral|Al-Ahli",
+    "4|DF|Çağlar Söyüncü|Fenerbahçe","5|MF|Salih Özcan|Borussia Dortmund","6|MF|Orkun Kökçü|Beşiktaş",
+    "7|FW|Kerem Aktürkoğlu|Fenerbahçe","8|FW|Arda Güler|Real Madrid","9|FW|Deniz Gül|FC Porto",
+    "10|MF|Hakan Çalhanoğlu|Inter Milan","11|FW|Kenan Yıldız|Juventus","12|GK|Altay Bayındır|Manchester United",
+    "13|DF|Eren Elmalı|Galatasaray","14|DF|Abdülkerim Bardakcı|Galatasaray","15|DF|Ozan Kabak|TSG Hoffenheim",
+    "16|MF|İsmail Yüksek|Fenerbahçe","17|FW|İrfan Can Kahveci|Kasımpaşa","18|DF|Mert Müldür|Fenerbahçe",
+    "19|FW|Yunus Akgün|Galatasaray","20|DF|Ferdi Kadıoğlu|Brighton & Hove Albion","21|FW|Barış Alper Yılmaz|Galatasaray",
+    "22|MF|Kaan Ayhan|Galatasaray","23|GK|Uğurcan Çakır|Galatasaray","24|FW|Oğuz Aydın|Fenerbahçe",
+    "25|DF|Samet Akaydin|Çaykur Rizespor","26|FW|Can Uzun|Eintracht Frankfurt",
+  ]),
+  "Germany": ps([
+    "1|GK|Manuel Neuer|Bayern Munich","2|DF|Antonio Rüdiger|Real Madrid","3|DF|Waldemar Anton|Borussia Dortmund",
+    "4|DF|Jonathan Tah|Bayern Munich","5|MF|Aleksandar Pavlović|Bayern Munich","6|DF|Joshua Kimmich|Bayern Munich",
+    "7|FW|Kai Havertz|Arsenal","8|MF|Leon Goretzka|Bayern Munich","9|MF|Jamie Leweling|VfB Stuttgart",
+    "10|MF|Jamal Musiala|Bayern Munich","11|FW|Nick Woltemade|Newcastle United","12|GK|Oliver Baumann|TSG Hoffenheim",
+    "13|MF|Pascal Groß|Brighton & Hove Albion","14|FW|Maximilian Beier|Borussia Dortmund","15|DF|Nico Schlotterbeck|Borussia Dortmund",
+    "16|MF|Angelo Stiller|VfB Stuttgart","17|MF|Florian Wirtz|Liverpool","18|DF|Nathaniel Brown|Eintracht Frankfurt",
+    "19|MF|Leroy Sané|Galatasaray","20|MF|Nadiem Amiri|Mainz 05","21|GK|Alexander Nübel|VfB Stuttgart",
+    "22|DF|David Raum|RB Leipzig","23|MF|Felix Nmecha|Borussia Dortmund","24|DF|Malick Thiaw|Newcastle United",
+    "25|MF|Assan Ouédraogo|RB Leipzig","26|FW|Deniz Undav|VfB Stuttgart",
+  ]),
+  "Curaçao": ps([
+    "1|GK|Eloy Room|Miami FC","2|DF|Shurandy Sambo|Sparta Rotterdam","3|DF|Juriën Gaari|Abha",
+    "4|DF|Roshon van Eijma|RKC Waalwijk","5|DF|Sherel Floranus|PEC Zwolle","6|MF|Godfried Roemeratoe|RKC Waalwijk",
+    "7|MF|Juninho Bacuna|FC Volendam","8|MF|Livano Comenencia|FC Zürich","9|FW|Jürgen Locadia|Miami FC",
+    "10|MF|Leandro Bacuna|Iğdır F.K.","11|FW|Jeremy Antonisse|AE Kifisia","12|FW|Sontje Hansen|Middlesbrough",
+    "13|FW|Tyrese Noslin|SC Telstar","14|FW|Kenji Gorré|Maccabi Haifa","15|MF|Ar'jany Martha|Rotherham United",
+    "16|FW|Jearl Margaritha|SK Beveren","17|FW|Brandley Kuwas|FC Volendam","18|DF|Armando Obispo|PSV Eindhoven",
+    "19|FW|Gervane Kastaneer|Terengganu FC","20|DF|Joshua Brenet|Kayserispor","21|MF|Tahith Chong|Sheffield United",
+    "22|MF|Kevin Felida|FC Den Bosch","23|DF|Riechedly Bazoer|Konyaspor","24|DF|Deveron Fonville|NEC Nijmegen",
+    "25|GK|Tyrick Bodak|SC Telstar","26|GK|Trevor Doornbusch|VVV-Venlo",
+  ]),
+  "Ivory Coast": ps([
+    "1|GK|Yahia Fofana|Çaykur Rizespor","2|DF|Ousmane Diomande|Sporting CP","3|DF|Ghislain Konan|Gil Vicente",
+    "4|MF|Jean Michaël Seri|Maribor","5|DF|Wilfried Singo|Galatasaray","6|MF|Seko Fofana|Porto",
+    "7|DF|Odilon Kossounou|Atalanta","8|MF|Franck Kessié|Al-Ahli","9|FW|Ange-Yoan Bonny|Inter Milan",
+    "10|FW|Simon Adingra|Monaco","11|FW|Yan Diomande|RB Leipzig","12|FW|Elye Wahi|Nice",
+    "13|DF|Christopher Opéri|İstanbul Başakşehir","14|FW|Oumar Diakité|Cercle Brugge","15|FW|Amad Diallo|Manchester United",
+    "16|GK|Mohamed Koné|Charleroi","17|DF|Guéla Doué|Strasbourg","18|MF|Ibrahim Sangaré|Nottingham Forest",
+    "19|FW|Nicolas Pépé|Villarreal","20|DF|Emmanuel Agbadou|Beşiktaş","21|DF|Evan Ndicka|Roma",
+    "22|FW|Evann Guessand|Crystal Palace","23|GK|Alban Lafont|Panathinaikos","24|FW|Bazoumana Touré|TSG Hoffenheim",
+    "25|MF|Parfait Guiagon|Charleroi","26|MF|Christ Inao Oulaï|Trabzonspor",
+  ]),
+  "Ecuador": ps([
+    "1|GK|Hernán Galíndez|Huracán","2|DF|Félix Torres|SC Internacional","3|DF|Piero Hincapié|Arsenal",
+    "4|DF|Joel Ordóñez|Club Brugge","5|MF|Jordy Alcívar|Independiente del Valle","6|DF|Willian Pacho|Paris Saint-Germain",
+    "7|DF|Pervis Estupiñán|AC Milan","8|MF|Anthony Valencia|Royal Antwerp","9|FW|John Yeboah|Venezia",
+    "10|MF|Kendry Páez|River Plate","11|FW|Kevin Rodríguez|Union Saint-Gilloise","12|GK|Moisés Ramírez|Kifisia",
+    "13|FW|Enner Valencia|Pachuca","14|MF|Alan Minda|Atlético Mineiro","15|MF|Pedro Vite|UNAM",
+    "16|FW|Jordy Caicedo|Huracán","17|DF|Ángelo Preciado|Atlético Mineiro","18|MF|Denil Castillo|FC Midtjylland",
+    "19|FW|Gonzalo Plata|Flamengo","20|FW|Nilson Angulo|Sunderland","21|MF|Alan Franco|Atlético Mineiro",
+    "22|GK|Gonzalo Valle|LDU Quito","23|MF|Moisés Caicedo|Chelsea","24|FW|Jeremy Arévalo|VfB Stuttgart",
+    "25|DF|Jackson Porozo|Tijuana","26|DF|Yaimar Medina|KRC Genk",
+  ]),
+  "Netherlands": ps([
+    "1|GK|Bart Verbruggen|Brighton & Hove Albion","2|DF|Jurriën Timber|Arsenal","3|MF|Marten de Roon|Atalanta",
+    "4|DF|Virgil van Dijk|Liverpool","5|DF|Nathan Aké|Manchester City","6|DF|Jan Paul van Hecke|Brighton & Hove Albion",
+    "7|MF|Justin Kluivert|Bournemouth","8|MF|Ryan Gravenberch|Liverpool","9|FW|Wout Weghorst|Ajax",
+    "10|FW|Memphis Depay|Corinthians","11|FW|Cody Gakpo|Liverpool","12|DF|Mats Wieffer|Brighton & Hove Albion",
+    "13|GK|Robin Roefs|Sunderland","14|MF|Tijjani Reijnders|Manchester City","15|DF|Micky van de Ven|Tottenham Hotspur",
+    "16|MF|Guus Til|PSV Eindhoven","17|FW|Noa Lang|Galatasaray","18|FW|Donyell Malen|Roma",
+    "19|FW|Brian Brobbey|Sunderland","20|MF|Teun Koopmeiners|Juventus","21|MF|Frenkie de Jong|Barcelona",
+    "22|DF|Denzel Dumfries|Inter Milan","23|GK|Mark Flekken|Bayer Leverkusen","24|FW|Crysencio Summerville|West Ham United",
+    "25|DF|Jorrel Hato|Chelsea","26|MF|Quinten Timber|Marseille",
+  ]),
+  "Japan": ps([
+    "1|GK|Zion Suzuki|Parma","2|DF|Yukinari Sugawara|Werder Bremen","3|DF|Shōgo Taniguchi|Sint-Truiden",
+    "4|DF|Kō Itakura|Ajax","5|DF|Yūto Nagatomo|FC Tokyo","6|MF|Wataru Endo|Liverpool",
+    "7|MF|Ao Tanaka|Leeds United","8|MF|Takefusa Kubo|Real Sociedad","9|FW|Keisuke Gotō|Sint-Truiden",
+    "10|MF|Ritsu Dōan|Eintracht Frankfurt","11|MF|Daizen Maeda|Celtic","12|GK|Keisuke Ōsako|Sanfrecce Hiroshima",
+    "13|MF|Keito Nakamura|Reims","14|MF|Junya Itō|Genk","15|MF|Daichi Kamada|Crystal Palace",
+    "16|DF|Tsuyoshi Watanabe|Feyenoord","17|MF|Yuito Suzuki|SC Freiburg","18|FW|Ayase Ueda|Feyenoord",
+    "19|FW|Kōki Ogawa|NEC Nijmegen","20|DF|Ayumu Seko|Le Havre","21|DF|Hiroki Itō|Bayern Munich",
+    "22|DF|Takehiro Tomiyasu|Ajax","23|GK|Tomoki Hayakawa|Kashima Antlers","24|MF|Kaishū Sano|Mainz 05",
+    "25|DF|Junnosuke Suzuki|Copenhagen","26|FW|Kento Shiogai|VfL Wolfsburg",
+  ]),
+  "Sweden": ps([
+    "1|GK|Jacob Widell Zetterström|Derby County","2|DF|Gustaf Lagerbielke|Braga","3|DF|Victor Lindelöf|Aston Villa",
+    "4|DF|Isak Hien|Atalanta","5|DF|Gabriel Gudmundsson|Leeds United","6|DF|Herman Johansson|FC Dallas",
+    "7|MF|Lucas Bergvall|Tottenham Hotspur","8|DF|Daniel Svensson|Borussia Dortmund","9|FW|Alexander Isak|Liverpool",
+    "10|MF|Benjamin Nygren|Celtic","11|FW|Anthony Elanga|Newcastle United","12|GK|Viktor Johansson|Stoke City",
+    "13|MF|Ken Sema|Pafos","14|DF|Hjalmar Ekdal|Burnley","15|DF|Carl Starfelt|Celta Vigo",
+    "16|MF|Jesper Karlström|Udinese","17|FW|Viktor Gyökeres|Arsenal","18|MF|Yasin Ayari|Brighton & Hove Albion",
+    "19|MF|Mattias Svanberg|VfL Wolfsburg","20|DF|Eric Smith|FC St. Pauli","21|DF|Alexander Bernhardsson|Holstein Kiel",
+    "22|MF|Besfort Zeneli|Union Saint-Gilloise","23|GK|Kristoffer Nordfeldt|AIK","24|DF|Elliot Stroud|Mjällby AIF",
+    "25|FW|Gustaf Nilsson|Club Brugge","26|FW|Taha Ali|Malmö FF",
+  ]),
+  "Tunisia": ps([
+    "1|GK|Mouhib Chamakh|Club Africain","2|DF|Ali Abdi|Nice","3|DF|Montassar Talbi|Lorient",
+    "4|DF|Omar Rekik|Maribor","5|DF|Adem Arous|Kasımpaşa","6|DF|Dylan Bronn|Servette",
+    "7|FW|Elias Achouri|Copenhagen","8|FW|Elias Saad|Hannover 96","9|FW|Hazem Mastouri|Dynamo Makhachkala",
+    "10|MF|Hannibal Mejbri|Burnley","11|MF|Ismaël Gharbi|FC Augsburg","12|DF|Mortadha Ben Ouanes|Kasımpaşa",
+    "13|MF|Rani Khedira|Union Berlin","14|MF|Khalil Ayari|Paris Saint-Germain","15|MF|Hadj Mahmoud|FC Lugano",
+    "16|GK|Aymen Dahmen|CS Sfaxien","17|MF|Ellyes Skhiri|Eintracht Frankfurt","18|FW|Rayan Elloumi|Vancouver Whitecaps",
+    "19|FW|Firas Chaouat|Club Africain","20|DF|Yan Valery|Young Boys","21|DF|Mohamed Amine Ben Hamida|Espérance de Tunis",
+    "22|GK|Sabri Ben Hessen|Étoile du Sahel","23|DF|Moutaz Neffati|IFK Norrköping","24|DF|Raed Chikhaoui|US Monastir",
+    "25|MF|Anis Ben Slimane|Norwich City","26|MF|Sebastian Tounekti|Celtic",
+  ]),
+  "Belgium": ps([
+    "1|GK|Thibaut Courtois|Real Madrid","2|DF|Zeno Debast|Sporting CP","3|DF|Arthur Theate|Eintracht Frankfurt",
+    "4|DF|Brandon Mechele|Club Brugge","5|DF|Maxim De Cuyper|Brighton & Hove Albion","6|MF|Axel Witsel|Girona",
+    "7|MF|Kevin De Bruyne|Napoli","8|MF|Youri Tielemans|Aston Villa","9|FW|Romelu Lukaku|Napoli",
+    "10|FW|Leandro Trossard|Arsenal","11|FW|Jérémy Doku|Manchester City","12|GK|Senne Lammens|Manchester United",
+    "13|GK|Mike Penders|Strasbourg","14|FW|Dodi Lukébakio|Benfica","15|DF|Thomas Meunier|Lille",
+    "16|DF|Koni De Winter|Milan","17|FW|Charles De Ketelaere|Atalanta","18|DF|Joaquin Seys|Club Brugge",
+    "19|MF|Diego Moreira|Strasbourg","20|MF|Hans Vanaken|Club Brugge","21|DF|Timothy Castagne|Fulham",
+    "22|MF|Alexis Saelemaekers|Milan","23|MF|Nicolas Raskin|Rangers","24|MF|Amadou Onana|Aston Villa",
+    "25|DF|Nathan Ngoy|Lille","26|FW|Matias Fernandez-Pardo|Lille",
+  ]),
+  "Egypt": ps([
+    "1|GK|Mohamed El Shenawy|Al Ahly","2|DF|Yasser Ibrahim|Al Ahly","3|DF|Mohamed Hany|Al Ahly",
+    "4|DF|Hossam Abdelmaguid|Zamalek","5|DF|Ramy Rabia|Al Ain","6|DF|Mohamed Abdelmonem|Nice",
+    "7|FW|Trézéguet|Al Ahly","8|MF|Emam Ashour|Al Ahly","9|FW|Hamza Abdelkarim|Barcelona B",
+    "10|FW|Mohamed Salah|Liverpool","11|MF|Mostafa Ziko|Pyramids","12|FW|Haissem Hassan|Oviedo",
+    "13|DF|Ahmed Fatouh|Zamalek","14|MF|Hamdy Fathy|Al-Wakrah","15|DF|Karim Hafez|Pyramids",
+    "16|GK|El Mahdy Soliman|Zamalek","17|MF|Mohanad Lasheen|Pyramids","18|MF|Nabil Emad|Al-Najma",
+    "19|MF|Marwan Attia|Al Ahly","20|FW|Ibrahim Adel|Nordsjælland","21|MF|Mahmoud Saber|ZED",
+    "22|FW|Omar Marmoush|Manchester City","23|GK|Mostafa Shobeir|Al Ahly","24|DF|Tarek Alaa|ZED",
+    "25|FW|Zizo|Al Ahly","26|GK|Mohamed Alaa|El Gouna",
+  ]),
+  "Iran": ps([
+    "1|GK|Alireza Beiranvand|Tractor","2|DF|Saleh Hardani|Esteghlal","3|DF|Ehsan Hajsafi|Sepahan",
+    "4|DF|Shojae Khalilzadeh|Tractor","5|DF|Milad Mohammadi|Persepolis","6|MF|Saeid Ezatolahi|Shabab Al Ahli",
+    "7|MF|Alireza Jahanbakhsh|Dender","8|MF|Mohammad Mohebi|Rostov","9|FW|Mehdi Taremi|Olympiacos",
+    "10|FW|Mehdi Ghayedi|Al Nasr","11|FW|Ali Alipour|Persepolis","12|GK|Payam Niazmand|Persepolis",
+    "13|DF|Hossein Kanaanizadegan|Persepolis","14|MF|Saman Ghoddos|Kalba","15|MF|Rouzbeh Cheshmi|Esteghlal",
+    "16|MF|Mehdi Torabi|Tractor","17|DF|Aria Yousefi|Sepahan","18|FW|Amirhossein Hosseinzadeh|Tractor",
+    "19|DF|Ali Nemati|Foolad","20|FW|Shahriyar Moghanlou|Kalba","21|MF|Mohammad Ghorbani|Al Wahda",
+    "22|GK|Hossein Hosseini|Sepahan","23|DF|Ramin Rezaeian|Foolad","24|FW|Dennis Eckert|Standard Liège",
+    "25|DF|Danial Eiri|Malavan","26|MF|Amirmohammad Razzaghinia|Esteghlal",
+  ]),
+  "New Zealand": ps([
+    "1|GK|Max Crocombe|Millwall","2|DF|Tim Payne|Wellington Phoenix","3|DF|Francis de Vries|Auckland FC",
+    "4|DF|Tyler Bindon|Sheffield United","5|DF|Michael Boxall|Minnesota United","6|MF|Joe Bell|Viking FK",
+    "7|MF|Matthew Garbett|Peterborough United","8|MF|Marko Stamenić|Swansea City","9|FW|Chris Wood|Nottingham Forest",
+    "10|MF|Sarpreet Singh|Wellington Phoenix","11|MF|Elijah Just|Motherwell","12|GK|Alex Paulsen|Lechia Gdańsk",
+    "13|DF|Liberato Cacace|Wrexham","14|MF|Alex Rufer|Wellington Phoenix","15|DF|Nando Pijnaker|Auckland FC",
+    "16|DF|Finn Surman|Portland Timbers","17|FW|Kosta Barbarouses|Western Sydney Wanderers","18|FW|Ben Waine|Port Vale",
+    "19|MF|Ben Old|AS Saint-Étienne","20|MF|Callum McCowatt|Silkeborg IF","21|FW|Jesse Randall|Auckland FC",
+    "22|GK|Michael Woud|Auckland FC","23|MF|Ryan Thomas|PEC Zwolle","24|DF|Callan Elliot|Auckland FC",
+    "25|MF|Lachlan Bayliss|Newcastle Jets","26|DF|Tommy Smith|Braintree Town",
+  ]),
+  "Spain": ps([
+    "1|GK|David Raya|Arsenal","2|DF|Marc Pubill|Atlético Madrid","3|DF|Álex Grimaldo|Bayer Leverkusen",
+    "4|DF|Eric García|Barcelona","5|DF|Marcos Llorente|Atlético Madrid","6|MF|Mikel Merino|Arsenal",
+    "7|FW|Ferran Torres|Barcelona","8|MF|Fabián Ruiz|Paris Saint-Germain","9|MF|Gavi|Barcelona",
+    "10|FW|Dani Olmo|Barcelona","11|FW|Yéremy Pino|Crystal Palace","12|DF|Pedro Porro|Tottenham Hotspur",
+    "13|GK|Joan García|Barcelona","14|DF|Aymeric Laporte|Athletic Bilbao","15|MF|Álex Baena|Atlético Madrid",
+    "16|MF|Rodri|Manchester City","17|FW|Nico Williams|Athletic Bilbao","18|MF|Martín Zubimendi|Arsenal",
+    "19|FW|Lamine Yamal|Barcelona","20|MF|Pedri|Barcelona","21|FW|Mikel Oyarzabal|Real Sociedad",
+    "22|DF|Pau Cubarsí|Barcelona","23|GK|Unai Simón|Athletic Bilbao","24|DF|Marc Cucurella|Chelsea",
+    "25|FW|Víctor Muñoz|Osasuna","26|FW|Borja Iglesias|Celta Vigo",
+  ]),
+  "Cape Verde": ps([
+    "1|GK|Vozinha|Chaves","2|DF|Stopira|Torreense","3|DF|Diney|Al Bataeh",
+    "4|DF|Roberto Lopes|Shamrock Rovers","5|DF|Logan Costa|Villarreal","6|MF|Kevin Pina|Krasnodar",
+    "7|MF|Jovane Cabral|Estrela Amadora","8|MF|João Paulo|FCSB","9|FW|Gilson Benchimol|Akron Tolyatti",
+    "10|MF|Jamiro Monteiro|PEC Zwolle","11|MF|Garry Rodrigues|Apollon Limassol","12|GK|Márcio Rosa|Montana",
+    "13|DF|Sidny Lopes Cabral|Benfica","14|MF|Deroy Duarte|Ludogorets Razgrad","15|MF|Laros Duarte|Puskás Akadémia",
+    "16|MF|Yannick Semedo|Farense","17|MF|Willy Semedo|Omonia","18|MF|Telmo Arcanjo|Vitória de Guimarães",
+    "19|FW|Dailon Livramento|Casa Pia","20|FW|Ryan Mendes|Iğdır","21|MF|Nuno da Costa|İstanbul Başakşehir",
+    "22|DF|Steven Moreira|Columbus Crew","23|GK|CJ dos Santos|San Diego FC","24|DF|Wagner Pina|Trabzonspor",
+    "25|DF|Kelvin Pires|SJK","26|MF|Hélio Varela|Maccabi Tel Aviv",
+  ]),
+  "Saudi Arabia": ps([
+    "1|GK|Nawaf Al-Aqidi|Al-Nassr","2|DF|Ali Majrashi|Al-Ahli","3|DF|Ali Lajami|Al-Hilal",
+    "4|DF|Abdulelah Al-Amri|Al-Nassr","5|DF|Hassan Al-Tambakti|Al-Hilal","6|MF|Nasser Al-Dawsari|Al-Hilal",
+    "7|MF|Musab Al-Juwayr|Al-Qadsiah","8|FW|Ayman Yahya|Al-Nassr","9|FW|Firas Al-Buraikan|Al-Ahli",
+    "10|FW|Salem Al-Dawsari|Al-Hilal","11|FW|Saleh Al-Shehri|Al-Ittihad","12|DF|Saud Abdulhamid|Lens",
+    "13|DF|Nawaf Boushal|Al-Nassr","14|DF|Hassan Kadesh|Al-Ittihad","15|MF|Abdullah Al-Khaibari|Al-Nassr",
+    "16|MF|Ziyad Al-Johani|Al-Ahli","17|FW|Khalid Al-Ghannam|Al-Ettifaq","18|MF|Alaa Al-Hejji|Neom",
+    "19|FW|Abdullah Al-Hamdan|Al-Nassr","20|FW|Sultan Mandash|Al-Hilal","21|GK|Mohammed Al-Owais|Al-Ula",
+    "22|GK|Ahmed Al-Kassar|Al-Qadsiah","23|MF|Mohamed Kanno|Al-Hilal","24|DF|Moteb Al-Harbi|Al-Hilal",
+    "25|DF|Jehad Thakri|Al-Qadsiah","26|DF|Mohammed Abu Al-Shamat|Al-Qadsiah",
+  ]),
+  "Uruguay": ps([
+    "1|GK|Sergio Rochet|SC Internacional","2|DF|José Giménez|Atlético Madrid","3|DF|Sebastián Cáceres|Club América",
+    "4|DF|Ronald Araújo|FC Barcelona","5|MF|Manuel Ugarte|Manchester United","6|MF|Rodrigo Bentancur|Tottenham Hotspur",
+    "7|MF|Nicolás de la Cruz|CR Flamengo","8|MF|Federico Valverde|Real Madrid","9|FW|Darwin Núñez|Al Hilal",
+    "10|MF|Giorgian de Arrascaeta|CR Flamengo","11|FW|Facundo Pellistri|Panathinaikos","12|GK|Santiago Mele|CF Monterrey",
+    "13|DF|Guillermo Varela|CR Flamengo","14|MF|Agustín Canobbio|Fluminense","15|MF|Emiliano Martínez|SE Palmeiras",
+    "16|DF|Mathías Olivera|SSC Napoli","17|DF|Matías Viña|River Plate","18|FW|Brian Rodríguez|Club América",
+    "19|FW|Rodrigo Aguirre|Tigres UANL","20|MF|Maximiliano Araújo|Sporting CP","21|FW|Federico Viñas|Real Oviedo",
+    "22|MF|Joaquín Piquerez|SE Palmeiras","23|GK|Fernando Muslera|Estudiantes de La Plata","24|DF|Santiago Bueno|Wolverhampton Wanderers",
+    "25|MF|Juan Manuel Sanabria|Real Salt Lake","26|MF|Rodrigo Zalazar|SC Braga",
+  ]),
+  "France": ps([
+    "1|GK|Brice Samba|Rennes","2|DF|Malo Gusto|Chelsea","3|DF|Lucas Digne|Aston Villa",
+    "4|DF|Dayot Upamecano|Bayern Munich","5|DF|Jules Koundé|Barcelona","6|MF|Manu Koné|Roma",
+    "7|FW|Ousmane Dembélé|Paris Saint-Germain","8|MF|Aurélien Tchouaméni|Real Madrid","9|FW|Marcus Thuram|Inter Milan",
+    "10|FW|Kylian Mbappé|Real Madrid","11|FW|Michael Olise|Bayern Munich","12|FW|Bradley Barcola|Paris Saint-Germain",
+    "13|MF|N'Golo Kanté|Fenerbahçe","14|MF|Adrien Rabiot|AC Milan","15|DF|Ibrahima Konaté|Liverpool",
+    "16|GK|Mike Maignan|AC Milan","17|DF|William Saliba|Arsenal","18|MF|Warren Zaïre-Emery|Paris Saint-Germain",
+    "19|DF|Théo Hernandez|Al-Hilal","20|FW|Désiré Doué|Paris Saint-Germain","21|DF|Lucas Hernandez|Paris Saint-Germain",
+    "22|FW|Jean-Philippe Mateta|Crystal Palace","23|GK|Robin Risser|RC Lens","24|MF|Rayan Cherki|Manchester City",
+    "25|MF|Maghnes Akliouche|AS Monaco","26|DF|Maxence Lacroix|Crystal Palace",
+  ]),
+  "Iraq": ps([
+    "1|GK|Fahad Talib|Al-Talaba","2|DF|Rebin Sulaka|Port","3|DF|Hussein Ali|Pogoń Szczecin",
+    "4|DF|Zaid Tahseen|Pakhtakor","5|DF|Akam Hashim|Al-Zawraa","6|DF|Manaf Younis|Al-Shorta",
+    "7|MF|Youssef Amyn|AEK Larnaca","8|MF|Ibrahim Bayesh|Al Dhafra","9|FW|Ali Al-Hamadi|Luton Town",
+    "10|FW|Mohanad Ali|Dibba","11|FW|Ahmed Qasem|Nashville SC","12|GK|Jalal Hassan|Al-Zawraa",
+    "13|FW|Ali Yousif|Al-Talaba","14|MF|Zidane Iqbal|FC Utrecht","15|DF|Ahmed Maknzi|Al-Karma",
+    "16|MF|Amir Al-Ammari|KS Cracovia","17|FW|Ali Jasim|Al-Najma","18|FW|Aymen Hussein|Al-Karma",
+    "19|MF|Kevin Yakob|AGF","20|MF|Aimar Sher|Sarpsborg 08","21|FW|Marko Farji|Venezia",
+    "22|GK|Ahmed Basil|Al-Shorta","23|DF|Merchas Doski|Viktoria Plzeň","24|MF|Zaid Ismail|Al-Talaba",
+    "25|DF|Mustafa Saadoon|Al-Shorta","26|DF|Frans Putros|Persib",
+  ]),
+  "Norway": ps([
+    "1|GK|Ørjan Nyland|Sevilla","2|MF|Morten Thorsby|Cremonese","3|DF|Kristoffer Ajer|Brentford",
+    "4|DF|Leo Østigård|Genoa","5|DF|David Møller Wolfe|Wolverhampton Wanderers","6|MF|Patrick Berg|Bodø/Glimt",
+    "7|FW|Alexander Sørloth|Atlético Madrid","8|MF|Sander Berge|Fulham","9|FW|Erling Haaland|Manchester City",
+    "10|MF|Martin Ødegaard|Arsenal","11|FW|Jørgen Strand Larsen|Crystal Palace","12|GK|Sander Tangvik|Hamburger SV",
+    "13|GK|Egil Selvik|Watford","14|MF|Fredrik Aursnes|Benfica","15|DF|Fredrik André Bjørkan|Bodø/Glimt",
+    "16|DF|Marcus Holmgren Pedersen|Torino","17|DF|Torbjørn Heggem|Bologna","18|MF|Kristian Thorstvedt|Sassuolo",
+    "19|MF|Thelo Aasgaard|Rangers","20|FW|Antonio Nusa|RB Leipzig","21|MF|Andreas Schjelderup|Benfica",
+    "22|MF|Oscar Bobb|Fulham","23|MF|Jens Petter Hauge|Bodø/Glimt","24|DF|Sondre Langås|Derby County",
+    "25|DF|Henrik Falchener|Viking","26|FW|Julian Ryerson|Borussia Dortmund",
+  ]),
+  "Senegal": ps([
+    "1|GK|Yehvann Diouf|OGC Nice","2|DF|Mamadou Sarr|Chelsea","3|DF|Kalidou Koulibaly|Al-Hilal",
+    "4|DF|Abdoulaye Seck|Maccabi Haifa","5|MF|Idrissa Gueye|Everton","6|MF|Pathé Ciss|Rayo Vallecano",
+    "7|FW|Assane Diao|Como 1907","8|MF|Lamine Camara|AS Monaco","9|FW|Bamba Dieng|FC Lorient",
+    "10|FW|Sadio Mané|Al-Nassr","11|FW|Nicolas Jackson|FC Bayern Munich","12|FW|Cherif Ndiaye|Samsunspor",
+    "13|FW|Iliman Ndiaye|Everton","14|DF|Ismail Jakobs|Galatasaray","15|DF|Krépin Diatta|AS Monaco",
+    "16|GK|Édouard Mendy|Al-Ahli Saudi","17|MF|Pape Matar Sarr|Tottenham Hotspur","18|FW|Ismaïla Sarr|Crystal Palace",
+    "19|DF|Moussa Niakhaté|Olympique Lyonnais","20|FW|Ibrahim Mbaye|Paris Saint-Germain","21|MF|Habib Diarra|Sunderland",
+    "22|MF|Bara Sapoko Ndiaye|FC Bayern Munich","23|GK|Mory Diaw|Le Havre","24|DF|Antoine Mendy|OGC Nice",
+    "25|DF|El Hadji Malick Diouf|West Ham United","26|MF|Pape Gueye|Villarreal",
+  ]),
+  "Argentina": ps([
+    "1|GK|Juan Musso|Atlético Madrid","3|DF|Nicolás Tagliafico|Lyon","4|DF|Gonzalo Montiel|River Plate",
+    "5|MF|Leandro Paredes|Boca Juniors","6|DF|Lisandro Martínez|Manchester United","7|MF|Rodrigo De Paul|Inter Miami CF",
+    "8|MF|Valentín Barco|Strasbourg","9|FW|Julián Alvarez|Atlético Madrid","10|FW|Lionel Messi|Inter Miami CF",
+    "11|MF|Giovani Lo Celso|Real Betis","12|GK|Gerónimo Rulli|Marseille","13|DF|Cristian Romero|Tottenham Hotspur",
+    "14|MF|Exequiel Palacios|Bayer Leverkusen","15|MF|Nicolás González|Atlético Madrid","16|FW|Thiago Almada|Atlético Madrid",
+    "17|FW|Giuliano Simeone|Atlético Madrid","18|FW|Nico Paz|Como","19|DF|Nicolás Otamendi|Benfica",
+    "20|MF|Alexis Mac Allister|Liverpool","21|FW|José Manuel López|Palmeiras","22|FW|Lautaro Martínez|Inter Milan",
+    "23|GK|Emiliano Martínez|Aston Villa","24|MF|Enzo Fernández|Chelsea","25|DF|Facundo Medina|Marseille",
+    "26|DF|Nahuel Molina|Atlético Madrid",
+  ]),
+  "Algeria": ps([
+    "1|GK|Melvin Mastil|Stade Nyonnais","2|DF|Aïssa Mandi|Lille","3|DF|Achref Abada|USM Alger",
+    "4|DF|Mohamed Amine Tougai|Espérance de Tunis","5|DF|Zineddine Belaïd|JS Kabylie","6|MF|Ramiz Zerrouki|Twente",
+    "7|FW|Riyad Mahrez|Al-Ahli","8|MF|Houssem Aouar|Al-Ittihad","9|FW|Amine Gouiri|Marseille",
+    "10|MF|Farès Chaïbi|Eintracht Frankfurt","11|FW|Anis Hadj Moussa|Feyenoord","12|FW|Nadhir Benbouali|Győri ETO",
+    "13|DF|Jaouen Hadjam|Young Boys","14|MF|Hicham Boudaoui|Nice","15|DF|Rayan Aït-Nouri|Manchester City",
+    "16|GK|Oussama Benbot|USM Alger","17|DF|Rafik Belghali|Hellas Verona","18|FW|Mohamed Amoura|VfL Wolfsburg",
+    "19|MF|Nabil Bentaleb|Lille","20|FW|Adil Boulbina|Al-Duhail","21|DF|Ramy Bensebaini|Borussia Dortmund",
+    "22|MF|Ibrahim Maza|Bayer Leverkusen","23|GK|Luca Zidane|Granada","24|MF|Yacine Titraoui|Charleroi",
+    "25|FW|Farès Ghedjemis|Frosinone","26|DF|Samir Chergui|Paris FC",
+  ]),
+  "Austria": ps([
+    "1|GK|Alexander Schlager|Red Bull Salzburg","2|DF|David Affengruber|Elche","3|DF|Kevin Danso|Tottenham Hotspur",
+    "4|MF|Xaver Schlager|RB Leipzig","5|DF|Stefan Posch|Mainz 05","6|MF|Nicolas Seiwald|RB Leipzig",
+    "7|FW|Marko Arnautović|Red Star Belgrade","8|DF|David Alaba|Real Madrid","9|MF|Marcel Sabitzer|Borussia Dortmund",
+    "10|MF|Florian Grillitsch|Braga","11|FW|Michael Gregoritsch|FC Augsburg","12|GK|Florian Wiegele|Viktoria Plzeň",
+    "13|GK|Patrick Pentz|Brøndby","14|FW|Saša Kalajdžić|LASK","15|DF|Philipp Lienhart|SC Freiburg",
+    "16|DF|Phillipp Mwene|Mainz 05","17|MF|Carney Chukwuemeka|Borussia Dortmund","18|MF|Romano Schmid|Werder Bremen",
+    "20|MF|Konrad Laimer|Bayern Munich","21|FW|Patrick Wimmer|VfL Wolfsburg","22|MF|Alexander Prass|TSG Hoffenheim",
+    "23|DF|Marco Friedl|Werder Bremen","24|MF|Paul Wanner|PSV Eindhoven","25|DF|Michael Svoboda|Venezia",
+    "26|MF|Alessandro Schöpf|Wolfsberger AC",
+  ]),
+  "Jordan": ps([
+    "1|GK|Yazeed Abulaila|Al-Hussein","2|DF|Mohammad Abu Hashish|Al-Karma","3|DF|Abdallah Nasib|Al-Zawraa",
+    "4|DF|Husam Abu Dahab|Al-Faisaly","5|DF|Yazan Al-Arab|FC Seoul","6|MF|Amer Jamous|Al-Zawraa",
+    "7|FW|Mohammad Abu Zrayq|Raja Casablanca","8|MF|Noor Al-Rawabdeh|Selangor","9|FW|Ali Olwan|Al-Sailiya",
+    "10|FW|Musa Al-Taamari|Rennes","11|FW|Odeh Al-Fakhouri|Pyramids","12|GK|Nour Bani Attiah|Al-Faisaly",
+    "13|FW|Mahmoud Al-Mardi|Al-Hussein","14|MF|Rajaei Ayed|Al-Hussein","15|MF|Ibrahim Sadeh|Al-Karma",
+    "16|DF|Mo Abualnadi|Selangor","17|DF|Salim Obaid|Al-Hussein","19|DF|Saed Al-Rosan|Al-Hussein",
+    "20|MF|Mohannad Abu Taha|Al-Quwa Al-Jawiya","21|MF|Nizar Al-Rashdan|Qatar SC","22|GK|Abdallah Al-Fakhouri|Al-Wehdat",
+    "23|DF|Ihsan Haddad|Al-Hussein","24|FW|Ali Azaizeh|Al-Shabab","25|MF|Mohammad Al-Dawoud|Al-Wehdat",
+    "26|DF|Anas Badawi|Al-Faisaly",
+  ]),
+  "Portugal": ps([
+    "1|GK|Diogo Costa|Porto","2|DF|Nélson Semedo|Fenerbahçe","3|DF|Rúben Dias|Manchester City",
+    "4|DF|Tomás Araújo|Benfica","5|DF|Diogo Dalot|Manchester United","6|MF|Matheus Nunes|Manchester City",
+    "7|FW|Cristiano Ronaldo|Al-Nassr","8|MF|Bruno Fernandes|Manchester United","9|FW|Gonçalo Ramos|Paris Saint-Germain",
+    "10|MF|Bernardo Silva|Manchester City","11|FW|João Félix|Al-Nassr","12|GK|José Sá|Wolverhampton Wanderers",
+    "13|DF|Renato Veiga|Villarreal","14|DF|Gonçalo Inácio|Sporting CP","15|MF|João Neves|Paris Saint-Germain",
+    "16|FW|Francisco Trincão|Sporting CP","17|FW|Rafael Leão|Milan","18|FW|Pedro Neto|Chelsea",
+    "19|FW|Gonçalo Guedes|Real Sociedad","20|DF|João Cancelo|Barcelona","21|MF|Rúben Neves|Al-Hilal",
+    "22|GK|Rui Silva|Sporting CP","23|MF|Vitinha|Paris Saint-Germain","24|DF|Samú Costa|Mallorca",
+    "25|DF|Nuno Mendes|Paris Saint-Germain","26|FW|Francisco Conceição|Juventus",
+  ]),
+  "Colombia": ps([
+    "1|GK|David Ospina|Atlético Nacional","2|DF|Daniel Muñoz|Crystal Palace","3|DF|Jhon Lucumí|Bologna",
+    "4|DF|Santiago Arias|Independiente","5|MF|Kevin Castaño|River Plate","6|MF|Richard Ríos|Benfica",
+    "7|FW|Luis Díaz|Bayern Munich","8|MF|Jorge Carrascal|Flamengo","9|FW|Jhon Córdoba|Krasnodar",
+    "10|MF|James Rodríguez|Minnesota United","11|MF|Jhon Arias|Palmeiras","12|GK|Camilo Vargas|Atlas",
+    "13|DF|Yerry Mina|Cagliari","14|DF|Gustavo Puerta|Racing Santander","15|MF|Juan Portilla|Athletico Paranaense",
+    "16|MF|Jefferson Lerma|Crystal Palace","17|DF|Johan Mojica|Mallorca","18|DF|Willer Ditta|Cruz Azul",
+    "19|FW|Cucho Hernández|Real Betis","20|MF|Juan Fernando Quintero|River Plate","21|FW|Jaminton Campaz|Rosario Central",
+    "22|DF|Deiver Machado|Nantes","23|DF|Davinson Sánchez|Galatasaray","24|GK|Álvaro Montero|Vélez Sarsfield",
+    "25|FW|Luis Suárez|Sporting CP","26|FW|Andrés Gómez|Vasco da Gama",
+  ]),
+  "DR Congo": ps([
+    "1|GK|Lionel Mpasi|Le Havre","2|DF|Aaron Wan-Bissaka|West Ham United","3|DF|Steve Kapuadi|Widzew Łódź",
+    "4|DF|Axel Tuanzebe|Burnley","5|DF|Dylan Batubinsika|AEL","6|MF|Ngal'ayel Mukau|Lille",
+    "7|MF|Nathanaël Mbuku|Montpellier","8|MF|Samuel Moutoussamy|Atromitos","9|FW|Brian Cipenga|Castellón",
+    "10|MF|Théo Bongonda|Spartak Moscow","11|FW|Gaël Kakuta|AEL","12|DF|Joris Kayembe|Genk",
+    "13|FW|Meschak Elia|Alanyaspor","14|MF|Noah Sadiki|Sunderland","15|MF|Aaron Tshibola|Kilmarnock",
+    "16|GK|Timothy Fayulu|Noah","17|FW|Cédric Bakambu|Real Betis","18|MF|Charles Pickel|Espanyol",
+    "19|FW|Fiston Mayele|Pyramids","20|FW|Yoane Wissa|Newcastle United","21|GK|Matthieu Epolo|Standard Liège",
+    "22|DF|Chancel Mbemba|Lille","23|FW|Simon Banza|Al Jazira","24|DF|Gédéon Kalulu|Aris Limassol",
+    "25|MF|Edo Kayembe|Watford","26|DF|Arthur Masuaku|Lens",
+  ]),
+  "Uzbekistan": ps([
+    "1|GK|Utkir Yusupov|Navbahor","2|DF|Abdukodir Khusanov|Manchester City","3|DF|Khojiakbar Alijonov|Pakhtakor",
+    "4|DF|Farrukh Sayfiev|Neftchi Fergana","5|DF|Rustam Ashurmatov|Esteghlal","6|MF|Akmal Mozgovoy|Pakhtakor",
+    "7|MF|Otabek Shukurov|Baniyas","8|MF|Jamshid Iskanderov|Neftchi Fergana","9|MF|Odiljon Hamrobekov|Tractor",
+    "10|MF|Jaloliddin Masharipov|Esteghlal","11|MF|Oston Urunov|Persepolis","12|GK|Abduvohid Nematov|Nasaf",
+    "13|DF|Sherzod Nasrullaev|Nasaf","14|FW|Eldor Shomurodov|İstanbul Başakşehir","15|DF|Umar Eshmurodov|Nasaf",
+    "16|GK|Botirali Ergashev|Neftchi Fergana","17|MF|Dostonbek Khamdamov|Pakhtakor","18|DF|Abdulla Abdullaev|Dibba",
+    "19|MF|Azizjon Ganiev|Al Bataeh","20|FW|Azizbek Amonov|Dinamo Samarqand","21|FW|Igor Sergeev|Persepolis",
+    "22|MF|Abbosbek Fayzullaev|İstanbul Başakşehir","23|MF|Sherzod Esanov|Bukhara","24|DF|Bekhruz Karimov|Surkhon Termiz",
+    "25|DF|Avazbek Ulmasaliev|AGMK","26|DF|Jakhongir Urozov|Dinamo Samarqand",
+  ]),
+  "Croatia": ps([
+    "1|GK|Dominik Livaković|Dinamo Zagreb","2|DF|Josip Stanišić|Bayern Munich","3|DF|Marin Pongračić|Fiorentina",
+    "4|DF|Joško Gvardiol|Manchester City","5|DF|Duje Ćaleta-Car|Real Sociedad","6|DF|Josip Šutalo|Ajax",
+    "7|MF|Nikola Moro|Bologna","8|MF|Mateo Kovačić|Manchester City","9|FW|Andrej Kramarić|TSG Hoffenheim",
+    "10|MF|Luka Modrić|Milan","11|FW|Ante Budimir|Osasuna","12|GK|Ivor Pandur|Hull City",
+    "13|MF|Nikola Vlašić|Torino","14|FW|Ivan Perišić|PSV Eindhoven","15|MF|Mario Pašalić|Atalanta",
+    "16|MF|Martin Baturina|Como","17|MF|Petar Sučić|Inter Milan","18|DF|Kristijan Jakić|FC Augsburg",
+    "19|MF|Toni Fruk|Rijeka","20|FW|Igor Matanović|SC Freiburg","21|MF|Luka Sučić|Real Sociedad",
+    "22|DF|Luka Vušković|Hamburger SV","23|GK|Dominik Kotarski|Copenhagen","24|FW|Marco Pašalić|Orlando City",
+    "25|DF|Martin Erlić|Midtjylland","26|FW|Petar Musa|FC Dallas",
+  ]),
+  "England": ps([
+    "1|GK|Jordan Pickford|Everton","2|DF|Ezri Konsa|Aston Villa","3|DF|Nico O'Reilly|Manchester City",
+    "4|MF|Declan Rice|Arsenal","5|DF|John Stones|Manchester City","6|DF|Marc Guéhi|Manchester City",
+    "7|FW|Bukayo Saka|Arsenal","8|MF|Elliot Anderson|Nottingham Forest","9|FW|Harry Kane|Bayern Munich",
+    "10|MF|Jude Bellingham|Real Madrid","11|FW|Marcus Rashford|Barcelona","12|DF|Tino Livramento|Newcastle United",
+    "13|GK|Dean Henderson|Crystal Palace","14|MF|Jordan Henderson|Brentford","15|DF|Dan Burn|Newcastle United",
+    "16|MF|Kobbie Mainoo|Manchester United","17|MF|Morgan Rogers|Aston Villa","18|FW|Anthony Gordon|Newcastle United",
+    "19|FW|Ollie Watkins|Aston Villa","20|FW|Noni Madueke|Arsenal","21|MF|Eberechi Eze|Arsenal",
+    "22|FW|Ivan Toney|Al-Ahli","23|GK|James Trafford|Manchester City","24|DF|Reece James|Chelsea",
+    "25|DF|Djed Spence|Tottenham Hotspur","26|DF|Jarell Quansah|Bayer Leverkusen",
+  ]),
+  "Ghana": ps([
+    "1|GK|Lawrence Ati-Zigi|St. Gallen","2|DF|Alidu Seidu|Rennes","3|MF|Caleb Yirenkyi|Nordsjælland",
+    "4|DF|Jonas Adjetey|VfL Wolfsburg","5|MF|Thomas Partey|Villarreal","6|DF|Abdul Mumin|Rayo Vallecano",
+    "7|FW|Abdul Fatawu|Leicester City","8|MF|Kwasi Sibo|Real Oviedo","9|FW|Jordan Ayew|Leicester City",
+    "10|FW|Brandon Thomas-Asante|Coventry City","11|MF|Antoine Semenyo|Manchester City","12|GK|Joseph Anang|St Patrick's Athletic",
+    "13|FW|Christopher Bonsu Baah|Al-Qadsiah","14|DF|Gideon Mensah|Auxerre","15|MF|Elisha Owusu|Auxerre",
+    "16|GK|Benjamin Asare|Hearts of Oak","17|DF|Abdul Rahman Baba|PAOK","18|DF|Jerome Opoku|İstanbul Başakşehir",
+    "19|FW|Iñaki Williams|Athletic Bilbao","20|MF|Augustine Boakye|Saint-Étienne","21|DF|Kojo Peprah Oppong|Nice",
+    "22|FW|Kamaldeen Sulemana|Atalanta","23|DF|Derrick Luckassen|Pafos","24|FW|Ernest Nuamah|Lyon",
+    "25|FW|Prince Kwabena Adu|Viktoria Plzeň","26|DF|Marvin Senaya|Auxerre",
+  ]),
+  "Panama": ps([
+    "1|GK|Luis Mejía|Nacional","2|DF|César Blackman|Slovan Bratislava","3|DF|José Córdoba|Norwich City",
+    "4|DF|Fidel Escobar|Saprissa","5|DF|Edgardo Fariña|Pari Nizhny Novgorod","6|MF|Cristian Martínez|Ironi Kiryat Shmona",
+    "7|MF|José Luis Rodríguez|Juárez","8|MF|Adalberto Carrasquilla|UNAM","9|FW|Tomás Rodríguez|Saprissa",
+    "10|MF|Ismael Díaz|León","11|MF|Yoel Bárcenas|Mazatlán","12|GK|César Samudio|Marathón",
+    "13|DF|Jiovany Ramos|Academia Puerto Cabello","14|DF|Carlos Harvey|Minnesota United","15|DF|Eric Davis|Plaza Amador",
+    "16|DF|Andrés Andrade|LASK","17|FW|José Fajardo|Universidad Católica","18|FW|Cecilio Waterman|Universidad de Concepción",
+    "19|MF|Alberto Quintero|Plaza Amador","20|MF|Aníbal Godoy|San Diego FC","21|MF|César Yanis|Cobresal",
+    "22|GK|Orlando Mosquera|Al-Fayha","23|DF|Michael Amir Murillo|Beşiktaş","24|FW|Azarias Londoño|Universidad Católica",
+    "25|DF|Roderick Miller|Turan Tovuz","26|DF|Jorge Gutiérrez|Deportivo La Guaira",
+  ]),
+};
+
+// ─── SQUAD-DERIVED OPTION LISTS (for Tournie pickers) ─────────────────────────
+const WC2026_TEAM_NAMES = Object.keys(WC2026_SQUADS).sort((a,b)=>a.localeCompare(b));
+
+const WC2026_ALL_PLAYERS = Object.entries(WC2026_SQUADS).flatMap(([team, squad]) =>
+  squad.map(p => ({ ...p, team }))
+).sort((a,b)=> a.name.localeCompare(b.name));
+
+function tournieOptionsFor(cat) {
+  if (!cat) return [];
+  if (cat.kind === "team") return WC2026_TEAM_NAMES;
+  if (cat.kind === "player") {
+    const players = cat.position
+      ? WC2026_ALL_PLAYERS.filter(p => p.position === cat.position)
+      : WC2026_ALL_PLAYERS;
+    return players.map(p => `${p.name} (${p.team})`);
+  }
+  return [];
+}
+
 
 // ─── MINI GAME SCORE AGGREGATOR ───────────────────────────────────────────────
 function calcMiniGameScores(game) {
@@ -1720,13 +2275,19 @@ function TournieView({ game, dispatch, session }) {
         <div style={{background:"var(--card-bg)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:6,padding:24,marginBottom:28}}>
           <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:3,fontSize:15,color:"var(--silver)",marginBottom:16}}>{deadlinePassed?"Your Predictions (locked)":"Your Tournament Predictions"}</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            {TOURNIE_CATEGORIES.map(cat=>(
+            {TOURNIE_CATEGORIES.map(cat=>{
+              const options = tournieOptionsFor(cat);
+              return (
               <div key={cat.id} className="admin-field">
                 <label className="login-label" style={{color:"var(--silver)"}}>{cat.label}</label>
-                <input className="pred-input" placeholder="e.g. Mbappe" value={draft[cat.id]||""} disabled={deadlinePassed}
-                  onChange={e=>setDraft(p=>({...p,[cat.id]:e.target.value}))} style={deadlinePassed?{background:"#f0f0f0",color:"#888"}:{}} />
+                <select className="pred-input" value={draft[cat.id]||""} disabled={deadlinePassed}
+                  onChange={e=>setDraft(p=>({...p,[cat.id]:e.target.value}))} style={deadlinePassed?{background:"#f0f0f0",color:"#888"}:{}}>
+                  <option value="">— Select {cat.kind==="team"?"a team":"a player"} —</option>
+                  {options.map(opt=><option key={opt} value={opt}>{opt}</option>)}
+                </select>
               </div>
-            ))}
+              );
+            })}
           </div>
           {!deadlinePassed&&(
             <div className="flex-end">
@@ -3616,10 +4177,17 @@ function TournieAdminTab({ game, dispatch }) {
         </div>
       </div>
       <div className="admin-grid">
-        {TOURNIE_CATEGORIES.map(cat=>(
+        {TOURNIE_CATEGORIES.map(cat=>{
+          const options = tournieOptionsFor(cat);
+          return (
           <div key={cat.id} className="admin-field"><label className="admin-label">{cat.label}</label>
-            <input className="admin-input" value={answers[cat.id]||""} onChange={e=>setAnswers(p=>({...p,[cat.id]:e.target.value}))} placeholder="Official answer…" /></div>
-        ))}
+            <select className="admin-input" value={answers[cat.id]||""} onChange={e=>setAnswers(p=>({...p,[cat.id]:e.target.value}))}>
+              <option value="">— Official answer —</option>
+              {options.map(opt=><option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+          );
+        })}
       </div>
       <div className="flex-end"><button className="btn btn-gold" onClick={()=>dispatch({type:"SET_TOURNIE_ANSWERS",answers})}>Save Tournie Answers</button></div>
     </div>
