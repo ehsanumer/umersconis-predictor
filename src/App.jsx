@@ -376,6 +376,37 @@ const KNOCKOUT_ROUNDS = [
   { id: "final", label: "Final",         correctResult: 80, correctScore: 240, wrong: -40 },
 ];
 
+// ─── POWERPLAY ────────────────────────────────────────────────────────────────
+// "All or nothing" boost: 10x your points for a correct score, or a flat -20
+// if you're wrong. One play allowed per named stage across the tournament.
+const POWERPLAY_MULTIPLIER = 10;
+const POWERPLAY_PENALTY = -20;
+const POWERPLAY_STAGES = [
+  { id: "group", label: "Group Stage" },
+  { id: "r32",   label: "Round of 32" },
+  { id: "qf",    label: "Quarter Final" },
+  { id: "sf",    label: "Semi Final" },
+  { id: "final", label: "Final" },
+];
+// Which "bucket" a match belongs to for PowerPlay purposes — null if not eligible (e.g. R16, 3rd place)
+function getPowerPlayBucket(match) {
+  if (!match) return null;
+  if (match.stage === "group") return "group";
+  if (["r32","qf","sf","final"].includes(match.round)) return match.round;
+  return null;
+}
+// Scan a player's predictions to find which PowerPlay slots they've used and on which match
+function getPowerPlayUsage(game, player) {
+  const usage = {};
+  (game.matches||[]).forEach(m => {
+    const bucket = getPowerPlayBucket(m);
+    if (!bucket) return;
+    const pred = (game.predictions[m.id]||{})[player];
+    if (pred?.powerPlay) usage[bucket] = m.id;
+  });
+  return usage;
+}
+
 const KILLER_STATS = [
   { id: "shots",    label: "Total Shots" },
   { id: "fouls",    label: "Total Fouls" },
@@ -647,7 +678,7 @@ function isPerfectScore(predScore, actualScore) {
 
 function calcScores(game) {
   const scores = {};
-  game.players.forEach(p => { scores[p] = { base:0, streaks:0, tournies:0, umersconi:0, infinetinos:0, killer:0, miniGames:0, total:0, correctScores:0 }; });
+  game.players.forEach(p => { scores[p] = { base:0, streaks:0, tournies:0, umersconi:0, infinetinos:0, killer:0, miniGames:0, powerPlay:0, total:0, correctScores:0 }; });
 
   const sortedMatches = [...(game.matches||[])].sort((a,b) => new Date(a.kickoff||0) - new Date(b.kickoff||0));
 
@@ -657,23 +688,30 @@ function calcScores(game) {
     game.players.forEach(player => {
       const pred = preds[player];
       if (!pred || pred.result === "x") { scores[player].base += forfeitPenalty(match); return; }
+      const isPP = !!pred.powerPlay;
+      let pts = 0, perfect = false;
       if (match.stage === "group") {
         if (pred.result === match.result) {
           // Group stage: score is a simple string, exact string match for perfect score
-          const perfect = pred.score === match.score;
-          if (perfect) { scores[player].base += 8; scores[player].correctScores++; }
-          else scores[player].base += 3;
+          perfect = pred.score === match.score;
+          pts = perfect ? 8 : 3;
         }
       } else {
         const round = KNOCKOUT_ROUNDS.find(r => r.id === match.round);
         if (!round) return;
         if (pred.result === match.result) {
-          const perfect = isPerfectScore(pred.score, match.score);
-          if (perfect) { scores[player].base += round.correctScore; scores[player].correctScores++; }
-          else scores[player].base += round.correctResult;
+          perfect = isPerfectScore(pred.score, match.score);
+          pts = perfect ? round.correctScore : round.correctResult;
         } else {
-          scores[player].base += round.wrong;
+          pts = round.wrong;
         }
+      }
+      if (perfect) scores[player].correctScores++;
+      if (isPP) {
+        // All or nothing: correct score = 10x the points; anything else = flat -20
+        scores[player].powerPlay += perfect ? pts * POWERPLAY_MULTIPLIER : POWERPLAY_PENALTY;
+      } else {
+        scores[player].base += pts;
       }
     });
   });
@@ -718,7 +756,7 @@ function calcScores(game) {
 
   game.players.forEach(p => {
     const s = scores[p];
-    s.total = s.base + s.streaks + s.tournies + s.umersconi + s.infinetinos + s.killer + s.miniGames;
+    s.total = s.base + s.streaks + s.tournies + s.umersconi + s.infinetinos + s.killer + s.miniGames + s.powerPlay;
   });
   return scores;
 }
@@ -825,6 +863,27 @@ function gameReducer(state, action) {
     }
     case "ENTER_RESULT": return { ...state, matches:(state.matches||[]).map(m=>m.id===action.matchId?{...m,result:action.result,score:action.score}:m) };
     case "SET_PREDICTIONS": return { ...state, predictions:{...state.predictions,[action.matchId]:{...(state.predictions[action.matchId]||{}),...action.predictions}} };
+    case "TOGGLE_POWERPLAY": {
+      const matchPreds = state.predictions[action.matchId] || {};
+      const pred = matchPreds[action.player];
+      if (!pred) return state; // must have a submitted prediction first
+      const match = (state.matches||[]).find(m=>m.id===action.matchId);
+      const bucket = getPowerPlayBucket(match);
+      if (!bucket) return state; // not an eligible stage
+      const turningOn = !pred.powerPlay;
+      if (turningOn) {
+        // Enforce one-per-stage: bail if this player already has a PowerPlay active in this bucket on a different match
+        const usage = getPowerPlayUsage(state, action.player);
+        if (usage[bucket] && usage[bucket] !== action.matchId) return state;
+      }
+      return {
+        ...state,
+        predictions: {
+          ...state.predictions,
+          [action.matchId]: { ...matchPreds, [action.player]: { ...pred, powerPlay: turningOn } }
+        }
+      };
+    }
     case "ADD_UMERSCONI": return { ...state, umersconiAwards:[...(state.umersconiAwards||[]),{player:action.player,pts:action.pts,reason:action.reason,timestamp:new Date().toISOString()}] };
     case "ADD_INFINETINO": return { ...state, infinetinos:[...(state.infinetinos||[]),{player:action.player,pts:action.pts,reason:action.reason,timestamp:new Date().toISOString()}] };
     case "SET_TOURNIE_ANSWERS": return { ...state, tournamentAnswers:action.answers };
@@ -1273,6 +1332,7 @@ function Leaderboard({ game }) {
             <div style={{textAlign:"right",fontSize:10}}>Infinetinos</div>
             <div style={{textAlign:"right",fontSize:10}}>Killer</div>
             <div style={{textAlign:"right",fontSize:10}}>Mini</div>
+            <div style={{textAlign:"right",fontSize:10}}>⚡ Power</div>
           </div>
           {ranked.map((player,i)=>{
             const s=scores[player];
@@ -1294,10 +1354,37 @@ function Leaderboard({ game }) {
                 <div className={`lb-component ${s.infinetinos<0?"negative":""}`}>{s.infinetinos}</div>
                 <div className={`lb-component ${s.killer>0?"positive":s.killer<0?"negative":""}`}>{s.killer>0?`+${s.killer}`:s.killer||"—"}</div>
                 <div className={`lb-component ${s.miniGames>0?"positive":s.miniGames<0?"negative":""}`}>{s.miniGames>0?`+${s.miniGames}`:s.miniGames||"—"}</div>
+                <div className={`lb-component ${s.powerPlay>0?"positive":s.powerPlay<0?"negative":""}`}>{s.powerPlay>0?`+${s.powerPlay}`:s.powerPlay||"—"}</div>
               </div>
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── POWERPLAY TRACKER (shows a player's 5 lifetime slots & whether they're used) ─
+function PowerPlayTracker({ game, player }) {
+  const usage = getPowerPlayUsage(game, player);
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 14px",marginBottom:16,background:"rgba(204,16,32,0.06)",border:"1px solid rgba(204,16,32,0.25)",borderRadius:6}}>
+      <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,letterSpacing:2,fontSize:11,color:"var(--red)"}}>⚡ POWERPLAY</span>
+      <span style={{fontSize:11,color:"var(--silver)",fontStyle:"italic"}}>10× points for a correct score · {POWERPLAY_PENALTY} flat if you're wrong · one per stage below</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginLeft:"auto"}}>
+        {POWERPLAY_STAGES.map(s=>{
+          const used = !!usage[s.id];
+          const match = used ? (game.matches||[]).find(m=>m.id===usage[s.id]) : null;
+          return (
+            <span key={s.id} title={used&&match?`Played on ${match.teams}`:`Available — ${s.label}`}
+              style={{fontSize:11,fontFamily:"Oswald,sans-serif",fontWeight:600,letterSpacing:1,padding:"3px 9px",borderRadius:3,
+                background: used ? "var(--red)" : "rgba(255,255,255,0.06)",
+                color: used ? "white" : "var(--silver)",
+                border: used ? "none" : "1px solid rgba(255,255,255,0.1)"}}>
+              {used?"⚡ ":"— "}{s.label}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
@@ -1417,6 +1504,7 @@ function MatchesView({ game, dispatch, session }) {
   return (
     <div className="page">
       <div className="section-header"><div className="section-title">Matches</div><div className="section-sub">{(game.matches||[]).length} fixtures · sorted by kickoff</div></div>
+      <PowerPlayTracker game={game} player={myPlayer} />
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
         {filterBtns.map(b=>(
           <button key={b.k} className={`btn btn-sm ${filter===b.k?"btn-gold":"btn-pitch"}`} onClick={()=>setFilter(b.k)}>{b.l}</button>
@@ -1480,6 +1568,28 @@ function MatchesView({ game, dispatch, session }) {
                               setErrors(p=>{const n={...p};delete n[match.id];return n;});
                               setSubmitting(p=>({...p,[match.id]:{scoreHome:s.home,scoreAway:s.away,method:s.method,pensWinner:s.pensWinner,excuse:myPred.excuse||""}}));
                             }}>Edit</button>
+                            {(()=>{
+                              if (deadlinePassed) return null;
+                              const bucket = getPowerPlayBucket(match);
+                              if (!bucket) return null;
+                              const usage = getPowerPlayUsage(game, myPlayer);
+                              const usedHere = !!myPred.powerPlay;
+                              const blockedByOther = usage[bucket] && usage[bucket]!==match.id;
+                              const stageLabel = POWERPLAY_STAGES.find(s=>s.id===bucket)?.label || bucket;
+                              if (blockedByOther) {
+                                const otherMatch = (game.matches||[]).find(m=>m.id===usage[bucket]);
+                                return <span style={{fontSize:11,color:"var(--silver)",fontStyle:"italic"}}>⚡ {stageLabel} PowerPlay already used{otherMatch?` (${otherMatch.teams})`:""}</span>;
+                              }
+                              return (
+                                <button
+                                  className={`btn btn-sm ${usedHere?"btn-gold":"btn-pitch"}`}
+                                  style={usedHere?{boxShadow:"0 0 14px rgba(204,16,32,0.6)",borderColor:"var(--red)"}:{}}
+                                  title={usedHere?"Click to cancel — 10× if you nail the score, -20 if you don't":`Use your ${stageLabel} PowerPlay on this match — 10× points for a correct score, ${POWERPLAY_PENALTY} flat otherwise`}
+                                  onClick={()=>dispatch({type:"TOGGLE_POWERPLAY",matchId:match.id,player:myPlayer})}>
+                                  ⚡ {usedHere?`PowerPlay ON (${stageLabel})`:`Play ${stageLabel} PowerPlay`}
+                                </button>
+                              );
+                            })()}
                           </div>
                         ):(
                           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -1545,6 +1655,13 @@ function MatchesView({ game, dispatch, session }) {
                         <span style={{fontFamily:"Oswald,sans-serif",fontSize:15}}>{myPred.result==="H"?homeTeam:myPred.result==="A"?awayTeam:"Draw"} · {myPred.score||"?-?"}</span>
                         {myPred.late&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>late</span>}
                         {myPred.excuse&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>"{myPred.excuse}"</span>}
+                        {myPred.powerPlay&&(()=>{
+                          const cr = myPred.result===match.result;
+                          const cs = cr && (match.stage==="group" ? myPred.score===match.score : isPerfectScore(myPred.score, match.score));
+                          return cs
+                            ? <span style={{fontSize:11,fontFamily:"Oswald,sans-serif",fontWeight:700,letterSpacing:1,color:"white",background:"var(--red)",padding:"2px 8px",borderRadius:3}}>⚡ POWERPLAY HIT — ×{POWERPLAY_MULTIPLIER}</span>
+                            : <span style={{fontSize:11,fontFamily:"Oswald,sans-serif",fontWeight:700,letterSpacing:1,color:"var(--red)",border:"1px solid var(--red)",padding:"2px 8px",borderRadius:3}}>⚡ POWERPLAY MISS — {POWERPLAY_PENALTY}</span>;
+                        })()}
                       </div>
                     )}
                     <div className="match-body">
