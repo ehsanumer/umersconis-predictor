@@ -1,0 +1,35 @@
+name: Sync World Cup results
+
+# Vercel's Hobby plan only allows daily-or-less cron jobs (vercel.json keeps a
+# once-daily run as a redundant fallback). To get the ~30-minute polling cadence
+# the results-sync feature actually needs, this workflow calls the same
+# /api/cron-sync-results endpoint on a schedule from GitHub Actions instead —
+# no plan restriction here, and it's free for this usage volume.
+#
+# Setup required (one-time, in the GitHub repo settings):
+#   Settings → Secrets and variables → Actions → New repository secret
+#     SYNC_URL    = https://umersconi.com/api/cron-sync-results
+#     CRON_SECRET = <same value as the CRON_SECRET env var set in Vercel>
+#
+# If CRON_SECRET isn't set in Vercel, the endpoint allows unauthenticated
+# requests (useful for first testing) — but it should be set in production so
+# this endpoint can't be hit by anyone who finds the URL.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}   # allows manually triggering a run from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call results-sync endpoint
+        run: |
+          curl -sS -X GET "${SYNC_URL}" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -w "\nHTTP %{http_code}\n" \
+            --max-time 60
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
