@@ -3960,7 +3960,7 @@ function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGame }) {
         {tab==="killer"     && <KillerAdminPanel game={game} dispatch={dispatch} session={session} />}
         {tab==="minigames"  && <MiniGamesAdmin game={game} dispatch={dispatch} session={session} />}
         {tab==="preds"      && <ManualPredsTab game={game} dispatch={dispatch} />}
-        {tab==="players"    && <PlayersTab game={game} gameId={activeGameId} dispatch={dispatch} session={session} />}
+        {tab==="players"    && <PlayersTab game={game} gameId={gameId} dispatch={dispatch} session={session} />}
         {tab==="autopilot"  && <AutopilotPanel game={game} dispatch={dispatch} session={session} />}
         {tab==="vendettas"  && <VendettasAdminTab game={game} dispatch={dispatch} />}
         {tab==="api"        && <FixtureSync game={game} dispatch={dispatch} />}
