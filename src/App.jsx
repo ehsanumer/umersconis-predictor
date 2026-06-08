@@ -435,6 +435,9 @@ function makeGameState(name, adminUsername) {
     matchDays: [],
     lockedResults: {},            // { matchId: true } — prevents auto-sync from overwriting
     resultSyncLog: [],            // [{ timestamp, matchId, teams, from:{result,score}|null, to:{result,score}, source:"cron"|"manual" }]
+    relationships: {},            // { [player]: { vendettas:[{target,reason}], bffs:[{target,reason}] } }
+    relationshipsUnlocked: false, // admin unlocks the survey after round 1
+    relationshipsCompleted: [],   // players who have submitted their survey
     autopilot: {
       enabled: false,
       personalityBrief: "",       // WhatsApp excerpts + player dynamics
@@ -1478,6 +1481,12 @@ function gameReducer(state, action) {
     case "DELETE_MINI_GAME": return { ...state, miniGames:(state.miniGames||[]).filter(g=>g.id!==action.id) };
     case "SYNC_MATCH_DAYS": return { ...state, matchDays: action.matchDays };
     case "EDIT_MATCH_DAY_LABEL": return { ...state, matchDays:(state.matchDays||[]).map(d=>d.id===action.id?{...d,label:action.label}:d) };
+    case "SUBMIT_RELATIONSHIPS": return {
+      ...state,
+      relationships: { ...(state.relationships||{}), [action.player]: { vendettas:action.vendettas, bffs:action.bffs } },
+      relationshipsCompleted: [...new Set([...(state.relationshipsCompleted||[]), action.player])],
+    };
+    case "TOGGLE_RELATIONSHIPS_UNLOCK": return { ...state, relationshipsUnlocked: !state.relationshipsUnlocked };
     case "SET_AUTOPILOT": return { ...state, autopilot:{...(state.autopilot||{}), ...action.updates} };
     case "AUTOPILOT_LOG": return { ...state, autopilot:{...(state.autopilot||{}), log:[action.entry,...((state.autopilot||{}).log||[]).slice(0,49)]} };
     case "BATCH_DISPATCH": {
@@ -1902,7 +1911,7 @@ function Leaderboard({ game }) {
           ))}
         </div>
       </div>
-      <div className="page">
+      <div className="page"><SectionTooltip id="leaderboard" />
         <div className="section-header"><div className="section-title">Standings</div><div className="section-sub">Updated after each result</div></div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           <div className="lb-row header-row">
@@ -2086,7 +2095,7 @@ function MatchesView({ game, dispatch, session }) {
   ];
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="matches" />
       <div className="section-header"><div className="section-title">Matches</div><div className="section-sub">{(game.matches||[]).length} fixtures · sorted by kickoff</div></div>
       <PowerPlayTracker game={game} player={myPlayer} />
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
@@ -2295,7 +2304,7 @@ function TournieView({ game, dispatch, session }) {
   }
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="tournies" />
       <div className="section-header"><div className="section-title">Tournament Predictions</div><div className="section-sub">50 pts each × correct scores = Tournie Score</div></div>
       <div className="notice" style={{background:deadlinePassed?"rgba(192,57,43,0.1)":"rgba(201,168,76,0.1)",borderColor:deadlinePassed?"var(--red)":"rgba(201,168,76,0.3)",color:deadlinePassed?"var(--red)":"var(--ink)"}}>
         {deadlinePassed?`⚠ Deadline passed: ${formatDeadline(deadline)}. Locked.`:deadline?`⏱ Deadline: ${formatDeadline(deadline)}`:"⏱ No deadline set — predictions open."}
@@ -2371,7 +2380,7 @@ function ChaosView({ game }) {
   ].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="chaos" />
       <div className="section-header"><div className="section-title">The Chaos Ledger</div><div className="section-sub">Umersconi giveth. Umersconi taketh away.</div></div>
       {all.length===0&&<div className="empty">No chaos yet. Umersconi is merely biding his time.</div>}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2406,7 +2415,7 @@ function KillerView({ game, dispatch, session }) {
   }
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="killer" />
       <div className="section-header"><div className="section-title">⚔ Killer</div><div className="section-sub">Closest within ±10% wins. Exact doubles the prize.</div></div>
       {!(game.killerRounds||[]).length&&<div className="empty">No Killer rounds yet. Umersconi will unleash one when the time is right.</div>}
       {(game.killerRounds||[]).map(round=>{
@@ -3801,7 +3810,7 @@ function MiniGamesView({ game, dispatch, session, isAdmin }) {
   const active = mgs.find(g=>g.id===activeId);
 
   if (!mgs.length) return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="minigames" />
       <div className="section-header"><div className="section-title">🎲 Mini Games</div><div className="section-sub">Umersconi's bag of chaos</div></div>
       <div className="empty">No mini games running yet. Umersconi will unleash them at will.</div>
     </div>
@@ -3929,6 +3938,7 @@ function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGame }) {
     {k:"preds",l:"Manual Preds"},
     {k:"players",l:"Players"},
     {k:"autopilot",l:"🤖 Autopilot"},
+    {k:"vendettas",l:"⚔️ Vendettas"},
     {k:"api",l:"🔌 API"},
   ];
 
@@ -3952,6 +3962,7 @@ function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGame }) {
         {tab==="preds"      && <ManualPredsTab game={game} dispatch={dispatch} />}
         {tab==="players"    && <PlayersTab game={game} gameId={activeGameId} dispatch={dispatch} session={session} />}
         {tab==="autopilot"  && <AutopilotPanel game={game} dispatch={dispatch} session={session} />}
+        {tab==="vendettas"  && <VendettasAdminTab game={game} dispatch={dispatch} />}
         {tab==="api"        && <FixtureSync game={game} dispatch={dispatch} />}
       </div>
     </div>
@@ -4788,6 +4799,15 @@ ${ap.personalityBrief || 'No brief provided. Use your own judgement.'}
 PLAYER NOTES:
 ${Object.entries(ap.playerNotes||{}).map(([p,n])=>`${p}: ${n}`).join('\n') || 'None'}
 
+VENDETTAS & BFFs (player-declared rivalries and alliances):
+${Object.entries(game.relationships||{}).length
+  ? Object.entries(game.relationships).map(([player, rel]) => {
+      const vs = (rel.vendettas||[]).map(v=>`  • AGAINST ${v.target}: "${v.reason}"`).join('\n');
+      const bf = (rel.bffs||[]).map(b=>`  • FOR ${b.target}: "${b.reason}"`).join('\n');
+      return `${player}:\n${vs||'  (no vendettas)'}${bf?'\n'+bf:''}`;
+    }).join('\n')
+  : 'No rivalry survey completed yet'}
+
 RECENT AWARDS & FINES (last 10):
 ${recentAwards || 'None yet — a clean slate, ripe for corruption'}
 
@@ -5367,7 +5387,7 @@ function MyPicksView({ game, session }) {
   };
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="mypicks" />
       <div className="section-header">
         <div className="section-title"><span className="section-title-star">★</span> My Picks <span className="section-title-star">★</span></div>
         <div className="section-rule"/>
@@ -5486,7 +5506,7 @@ function RecapView({ game }) {
   const OL = { correctScore:"★", correctResult:"✓", wrong:"✗", none:"—", pending:"·" };
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="recap" />
       <div className="section-header">
         <div className="section-title"><span className="section-title-star">★</span> Match Day Recap <span className="section-title-star">★</span></div>
         <div className="section-rule"/>
@@ -5621,7 +5641,7 @@ function HeadToHeadView({ game }) {
   const col = p => p==="p1"?"rgba(204,16,32,0.15)":p==="p2"?"rgba(96,165,250,0.12)":"rgba(255,255,255,0.03)";
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="h2h" />
       <div className="section-header">
         <div className="section-title"><span className="section-title-star">★</span> Head to Head <span className="section-title-star">★</span></div>
         <div className="section-rule"/>
@@ -5750,7 +5770,7 @@ function AwardsView({ game }) {
   );
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="awards" />
       <div className="section-header">
         <div className="section-title"><span className="section-title-star">★</span> Awards <span className="section-title-star">★</span></div>
         <div className="section-rule"/>
@@ -5826,7 +5846,7 @@ function BracketView({ game, session }) {
   );
 
   return (
-    <div className="page">
+    <div className="page"><SectionTooltip id="bracket" />
       <div className="section-header">
         <div className="section-title"><span className="section-title-star">★</span> Bracket <span className="section-title-star">★</span></div>
         <div className="section-rule"/>
@@ -5862,6 +5882,378 @@ function BracketView({ game, session }) {
           <MatchSlot match={thirdPlace}/>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── SHARE TO WHATSAPP ────────────────────────────────────────────────────────
+const TEAM_FLAGS = {
+  "Argentina":"🇦🇷","Australia":"🇦🇺","Belgium":"🇧🇪","Bosnia & Herzegovina":"🇧🇦",
+  "Brazil":"🇧🇷","Cameroon":"🇨🇲","Canada":"🇨🇦","Cape Verde":"🇨🇻",
+  "Chile":"🇨🇱","Colombia":"🇨🇴","Croatia":"🇭🇷","Curaçao":"🇨🇼",
+  "Czechia":"🇨🇿","DR Congo":"🇨🇩","Ecuador":"🇪🇨","Egypt":"🇪🇬",
+  "England":"🏴󠁧󠁢󠁥󠁮󠁧󁿢","France":"🇫🇷","Germany":"🇩🇪","Ghana":"🇬🇭",
+  "Honduras":"🇭🇳","Hungary":"🇭🇺","Iran":"🇮🇷","Italy":"🇮🇹",
+  "Ivory Coast":"🇨🇮","Japan":"🇯🇵","Kenya":"🇰🇪","Mexico":"🇲🇽",
+  "Morocco":"🇲🇦","Netherlands":"🇳🇱","New Zealand":"🇳🇿","Nigeria":"🇳🇬",
+  "Panama":"🇵🇦","Paraguay":"🇵🇾","Peru":"🇵🇪","Poland":"🇵🇱",
+  "Portugal":"🇵🇹","Qatar":"🇶🇦","Saudi Arabia":"🇸🇦","Senegal":"🇸🇳",
+  "Serbia":"🇷🇸","South Africa":"🇿🇦","South Korea":"🇰🇷","Spain":"🇪🇸",
+  "Switzerland":"🇨🇭","Türkiye":"🇹🇷","USA":"🇺🇸","Ukraine":"🇺🇦",
+  "Uruguay":"🇺🇾","Venezuela":"🇻🇪","Wales":"🏴󠁧󠁢󠁷󠁬󠁳󁿢",
+};
+function teamFlag(name) { return TEAM_FLAGS[name] || "⚽"; }
+
+function generateShareText(game, matchDayId) {
+  const scores = calcScores(game);
+  const players = game.players || [];
+  const allFinished = (game.matches || []).filter(m => m.result);
+
+  // Which matches to show
+  let relevantMatches, label;
+  if (matchDayId) {
+    const md = (game.matchDays || []).find(d => d.id === matchDayId);
+    relevantMatches = allFinished.filter(m => (md?.matchIds || []).includes(m.id));
+    label = md?.label || "Match Day";
+  } else {
+    relevantMatches = [...allFinished].sort((a,b)=>new Date(b.kickoff||0)-new Date(a.kickoff||0)).slice(0, 6);
+    label = "Latest Results";
+  }
+
+  const puzzleLines = relevantMatches.map(m => {
+    const [home, away] = m.teams.split(" v ");
+    const emojiRow = players.map(p => {
+      const pred = (game.predictions[m.id] || {})[p];
+      if (!pred || pred.result === "x") return "⬜";
+      if (pred.result !== m.result) return "❌";
+      return isPerfectScore(pred.score, m.score) ? "🎯" : "✅";
+    }).join("");
+    const suffix = m.score?.includes("(AET)") ? " (AET)" : m.score?.includes("(PENS)") ? " (PENS)" : "";
+    return `${teamFlag(home)} *${home}* ${m.score?.replace(" (AET)","").replace(" (PENS)","")||""}${suffix} *${away}* ${teamFlag(away)}\n${emojiRow}  ${players.join(" · ")}`;
+  });
+
+  const rankEmoji = ["🥇","🥈","🥉","4⃣","5⃣","6⃣","7⃣","8⃣"];
+  const standings = players
+    .map(p => ({ p, pts: scores[p]?.total || 0 }))
+    .sort((a, b) => b.pts - a.pts);
+  const standingsText = standings.map((s, i) =>
+    `${rankEmoji[i] || `${i+1}.`} ${s.p}  *${s.pts}pts*`
+  ).join("\n");
+
+  const legend = "🎯 Perfect score  ✅ Right result  ❌ Wrong  ⬜ No pred";
+  const matchSection = puzzleLines.length
+    ? `⚽ *${label}*\n\n${puzzleLines.join("\n\n")}\n\n${legend}`
+    : "⚽ No completed matches yet";
+
+  return `🏆 *Umersconi's Predictor*\n_${game.name}_\n\n${matchSection}\n\n📊 *Standings*\n${standingsText}\n\n_Play at umersconi.com_`;
+}
+
+function ShareView({ game, session }) {
+  const matchDays = (game.matchDays || []).filter(md =>
+    (game.matches || []).some(m => (md.matchIds || []).includes(m.id) && m.result)
+  );
+  const [selectedMd, setSelectedMd] = useState("");
+  const text = generateShareText(game, selectedMd || null);
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  }
+
+  return (
+    <div className="page">
+      <div style={{maxWidth:640,margin:"0 auto",padding:"24px 16px"}}>
+        <div style={{fontFamily:"Oswald,sans-serif",fontSize:22,letterSpacing:3,marginBottom:4}}>📱 SHARE UPDATE</div>
+        <div style={{color:"var(--silver)",fontSize:13,marginBottom:24}}>
+          Generate a shareable update for your WhatsApp group — results, emoji puzzle, standings.
+        </div>
+
+        {matchDays.length > 0 && (
+          <div style={{marginBottom:20}}>
+            <label style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--silver)",display:"block",marginBottom:6}}>MATCH DAY (optional)</label>
+            <select className="admin-input" value={selectedMd} onChange={e=>setSelectedMd(e.target.value)}
+              style={{background:"#1a1a1a",color:"#eee",border:"1px solid rgba(201,168,76,0.3)",maxWidth:320}}>
+              <option value="">Latest results (auto)</option>
+              {matchDays.map(md=><option key={md.id} value={md.id}>{md.label}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div style={{background:"#111",border:"1px solid rgba(201,168,76,0.2)",borderRadius:6,padding:"16px",marginBottom:20,whiteSpace:"pre-wrap",fontFamily:"monospace",fontSize:12,lineHeight:1.6,color:"#ddd",maxHeight:380,overflowY:"auto"}}>
+          {text}
+        </div>
+
+        <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          <a href={waUrl} target="_blank" rel="noopener noreferrer"
+            style={{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 20px",background:"#25D366",color:"white",borderRadius:4,fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:13,textDecoration:"none",fontWeight:700}}>
+            📲 OPEN IN WHATSAPP
+          </a>
+          <button className="btn btn-gold" onClick={copy} style={{fontSize:13}}>
+            {copied ? "✓ Copied!" : "📋 Copy Text"}
+          </button>
+        </div>
+        <div style={{marginTop:12,color:"var(--silver)",fontSize:12}}>
+          Tap "Open in WhatsApp" → choose your group → send. Or copy the text and paste it manually.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── VENDETTAS & BFFs ─────────────────────────────────────────────────────────
+function RelationshipSurveyModal({ game, dispatch, session }) {
+  const player = session?.username;
+  const others = (game.players || []).filter(p => p !== player);
+  const [vendettas, setVendettas] = useState([{ target:"", reason:"" }]);
+  const [bffs, setBffs] = useState([{ target:"", reason:"" }]);
+  const [step, setStep] = useState(1); // 1=vendettas, 2=bffs, 3=review
+  const [error, setError] = useState("");
+
+  function addEntry(list, setList) {
+    if (list.length < 3) setList([...list, { target:"", reason:"" }]);
+  }
+  function updateEntry(list, setList, i, field, val) {
+    const updated = list.map((e, j) => j === i ? { ...e, [field]: val } : e);
+    setList(updated);
+  }
+  function removeEntry(list, setList, i) {
+    setList(list.filter((_, j) => j !== i));
+  }
+
+  function validateStep(list) {
+    const filled = list.filter(e => e.target && e.reason.trim());
+    if (!filled.length) return "Add at least one entry.";
+    if (list.some(e => e.target && !e.reason.trim())) return "Please add a reason for each selection.";
+    return null;
+  }
+
+  function submit() {
+    const filledVs = vendettas.filter(e => e.target && e.reason.trim());
+    const filledBfs = bffs.filter(e => e.target && e.reason.trim());
+    if (!filledVs.length || !filledBfs.length) { setError("Complete both sections before submitting."); return; }
+    dispatch({ type:"SUBMIT_RELATIONSHIPS", player, vendettas:filledVs, bffs:filledBfs });
+  }
+
+  const EntriesEditor = ({ title, emoji, list, setList, targets, placeholder }) => (
+    <div>
+      <div style={{fontFamily:"Oswald,sans-serif",fontSize:15,letterSpacing:2,marginBottom:12}}>{emoji} {title}</div>
+      {list.map((e, i) => (
+        <div key={i} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4,padding:"10px 12px"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <select className="admin-input" value={e.target}
+              onChange={ev => updateEntry(list, setList, i, "target", ev.target.value)}
+              style={{flex:1,background:"#1a1a1a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)"}}>
+              <option value="">— Select player —</option>
+              {targets.filter(t => t !== e.target && !list.some((x,j)=>j!==i&&x.target===t)).map(t=>
+                <option key={t} value={t}>{t}</option>
+              )}
+            </select>
+            {list.length > 1 && (
+              <button onClick={() => removeEntry(list, setList, i)}
+                style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>
+            )}
+          </div>
+          <input className="admin-input" placeholder={placeholder} value={e.reason}
+            onChange={ev => updateEntry(list, setList, i, "reason", ev.target.value)}
+            style={{width:"100%",background:"#1a1a1a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",boxSizing:"border-box"}} />
+        </div>
+      ))}
+      {list.length < 3 && (
+        <button className="btn btn-sm" onClick={() => addEntry(list, setList)}
+          style={{background:"rgba(255,255,255,0.06)",color:"var(--silver)",border:"1px solid rgba(255,255,255,0.12)",marginTop:4}}>
+          + Add another (max 3)
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:"#0f0f0f",border:"1px solid rgba(201,168,76,0.4)",borderRadius:8,maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto",padding:28}}>
+        <div style={{fontFamily:"Oswald,sans-serif",fontSize:20,letterSpacing:3,color:"var(--gold)",marginBottom:4}}>⚔️ VENDETTAS & BFFs</div>
+        <div style={{color:"var(--silver)",fontSize:13,marginBottom:20,lineHeight:1.5}}>
+          Umersconi wants to know where the loyalties and grudges lie. Your answers are private — but they <em>will</em> influence how chaos is dispensed.
+        </div>
+
+        {step === 1 && (
+          <>
+            <EntriesEditor
+              title="YOUR VENDETTAS" emoji="💀"
+              list={vendettas} setList={setVendettas} targets={others}
+              placeholder="Why are you rooting against them?" />
+            {error && <div style={{color:"var(--red)",fontSize:12,marginTop:8}}>{error}</div>}
+            <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+              <button className="btn btn-gold" onClick={() => {
+                const err = validateStep(vendettas); if (err) { setError(err); return; }
+                setError(""); setStep(2);
+              }}>Next →</button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <EntriesEditor
+              title="YOUR BFFs" emoji="💚"
+              list={bffs} setList={setBffs} targets={others}
+              placeholder="Why are you rooting for them?" />
+            {error && <div style={{color:"var(--red)",fontSize:12,marginTop:8}}>{error}</div>}
+            <div style={{marginTop:20,display:"flex",justifyContent:"space-between"}}>
+              <button className="btn" onClick={() => { setError(""); setStep(1); }}
+                style={{background:"rgba(255,255,255,0.06)",color:"var(--silver)"}}>← Back</button>
+              <button className="btn btn-gold" onClick={() => {
+                const err = validateStep(bffs); if (err) { setError(err); return; }
+                setError(""); setStep(3);
+              }}>Review →</button>
+            </div>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:2,color:"var(--silver)",marginBottom:12}}>REVIEW YOUR SUBMISSION</div>
+            <div style={{marginBottom:10}}>
+              <div style={{color:"var(--gold)",fontFamily:"Oswald,sans-serif",fontSize:12,letterSpacing:1,marginBottom:6}}>💀 VENDETTAS</div>
+              {vendettas.filter(v=>v.target).map((v,i)=>(
+                <div key={i} style={{fontSize:13,marginBottom:4,padding:"6px 10px",background:"rgba(192,57,43,0.08)",borderRadius:3}}>
+                  <strong>{v.target}</strong> — <em style={{color:"#aaa"}}>"{v.reason}"</em>
+                </div>
+              ))}
+            </div>
+            <div style={{marginBottom:20}}>
+              <div style={{color:"#4ade80",fontFamily:"Oswald,sans-serif",fontSize:12,letterSpacing:1,marginBottom:6}}>💚 BFFs</div>
+              {bffs.filter(b=>b.target).map((b,i)=>(
+                <div key={i} style={{fontSize:13,marginBottom:4,padding:"6px 10px",background:"rgba(74,222,128,0.06)",borderRadius:3}}>
+                  <strong>{b.target}</strong> — <em style={{color:"#aaa"}}>"{b.reason}"</em>
+                </div>
+              ))}
+            </div>
+            <div style={{color:"var(--silver)",fontSize:12,marginBottom:16,fontStyle:"italic"}}>
+              Once submitted you can't change this. Umersconi is watching.
+            </div>
+            {error && <div style={{color:"var(--red)",fontSize:12,marginBottom:8}}>{error}</div>}
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <button className="btn" onClick={() => setStep(2)}
+                style={{background:"rgba(255,255,255,0.06)",color:"var(--silver)"}}>← Back</button>
+              <button className="btn btn-gold" onClick={submit}>⚔️ Submit to Umersconi</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VendettasAdminTab({ game, dispatch }) {
+  const completed = game.relationshipsCompleted || [];
+  const pending = (game.players || []).filter(p => !completed.includes(p));
+  const relationships = game.relationships || {};
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div>
+          <div style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:2,color:"var(--silver)"}}>SURVEY STATUS</div>
+          <div style={{fontSize:13,marginTop:4,color:"#aaa"}}>
+            {completed.length}/{(game.players||[]).length} players completed
+            {pending.length > 0 && <span style={{color:"var(--red)",marginLeft:8}}>Pending: {pending.join(", ")}</span>}
+          </div>
+        </div>
+        <button className="btn btn-gold" onClick={() => dispatch({ type:"TOGGLE_RELATIONSHIPS_UNLOCK" })}>
+          {game.relationshipsUnlocked ? "🔒 Lock Survey" : "🔓 Unlock Survey"}
+        </button>
+      </div>
+
+      {!game.relationshipsUnlocked && (
+        <div className="notice" style={{background:"rgba(201,168,76,0.06)",borderColor:"rgba(201,168,76,0.2)",fontSize:13}}>
+          Survey is currently locked. Unlock it when all players have signed up and at least one round of fixtures has been played. Players will see a mandatory survey modal on their next visit.
+        </div>
+      )}
+
+      {completed.length > 0 && (
+        <div>
+          <div style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--silver)",marginTop:20,marginBottom:10}}>RESPONSES</div>
+          {completed.map(player => {
+            const rel = relationships[player] || {};
+            return (
+              <div key={player} style={{marginBottom:16,border:"1px solid rgba(201,168,76,0.15)",borderRadius:4,padding:"12px 14px"}}>
+                <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14,marginBottom:8}}>{player}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div>
+                    <div style={{fontFamily:"Oswald,sans-serif",fontSize:10,letterSpacing:2,color:"var(--red)",marginBottom:6}}>💀 VENDETTAS</div>
+                    {(rel.vendettas||[]).map((v,i)=>(
+                      <div key={i} style={{fontSize:12,marginBottom:4}}>
+                        <strong>{v.target}</strong><br/><span style={{color:"#999",fontStyle:"italic"}}>"{v.reason}"</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{fontFamily:"Oswald,sans-serif",fontSize:10,letterSpacing:2,color:"#4ade80",marginBottom:6}}>💚 BFFs</div>
+                    {(rel.bffs||[]).map((b,i)=>(
+                      <div key={i} style={{fontSize:12,marginBottom:4}}>
+                        <strong>{b.target}</strong><br/><span style={{color:"#999",fontStyle:"italic"}}>"{b.reason}"</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SECTION TOOLTIPS ─────────────────────────────────────────────────────────
+const SECTION_TOOLTIPS = {
+  leaderboard: "This is the live leaderboard — points update as match results come in. 🎯 means a perfect score prediction (right result AND right score). Gold = top 3.",
+  matches: "Submit your predictions here before each deadline. For knockout matches, you also need to predict whether it ends in normal time, extra time (AET), or on penalties — and the scoreline follows different rules for each.",
+  mypicks: "Your personal predictions at a glance — green means you got the right result, gold means perfect score (exactly right). Use this to track your form.",
+  recap: "Full match-by-match breakdown with everyone's predictions, points earned, and who cleaned up vs. who bottled it.",
+  h2h: "Head-to-head records between any two players in the game. Select two names to see who has the better prediction record.",
+  awards: "Umersconi Awards 🏆 and Infinetinos (fines) 💸 — dispensed semi-randomly based on performance, personality, grudges, and chaos. Nothing is safe.",
+  bracket: "The knockout bracket — follow which teams progress from the Round of 32 through to the final. Updates as results come in.",
+  tournies: "One-off tournament-level predictions: winner, top scorer, player of the tournament, etc. Big points, but you only get one shot.",
+  killer: "The Killer Round — a high-stakes elimination game. Players nominate each other, last one standing wins a points bonus.",
+  minigames: "Bonus mini-games that unlock throughout the tournament — extra ways to earn (or lose) points between match days.",
+  share: "Generate a shareable WhatsApp update: recent results, who predicted what (emoji puzzle), and the current standings.",
+};
+
+const TOOLTIP_KEY = "umersconi_tooltips_seen";
+function useTooltipDismiss(id) {
+  const initial = () => {
+    try { return !!JSON.parse(localStorage.getItem(TOOLTIP_KEY) || "{}")[id]; } catch { return false; }
+  };
+  const [dismissed, setDismissed] = useState(initial);
+  function dismiss() {
+    try {
+      const seen = JSON.parse(localStorage.getItem(TOOLTIP_KEY) || "{}");
+      seen[id] = true;
+      localStorage.setItem(TOOLTIP_KEY, JSON.stringify(seen));
+    } catch {}
+    setDismissed(true);
+  }
+  return [dismissed, dismiss];
+}
+
+function SectionTooltip({ id }) {
+  const text = SECTION_TOOLTIPS[id];
+  const [dismissed, dismiss] = useTooltipDismiss(id);
+  if (!text || dismissed) return null;
+  return (
+    <div style={{
+      display:"flex",alignItems:"flex-start",gap:10,
+      background:"rgba(201,168,76,0.07)",border:"1px solid rgba(201,168,76,0.25)",
+      borderRadius:5,padding:"10px 14px",marginBottom:20,fontSize:13,lineHeight:1.5,
+    }}>
+      <span style={{fontSize:16,flexShrink:0,marginTop:1}}>💡</span>
+      <span style={{color:"#ccc",flex:1}}>{text}</span>
+      <button onClick={dismiss}
+        style={{background:"none",border:"none",color:"var(--silver)",cursor:"pointer",fontSize:16,lineHeight:1,flexShrink:0,padding:0,marginLeft:4}}>
+        ×
+      </button>
     </div>
   );
 }
@@ -5981,8 +6373,15 @@ export default function App() {
     {id:"chaos",l:"Chaos Ledger"},
     {id:"killer",l:"⚔ Killer"},
     {id:"minigames",l:"🎲 Mini Games"},
+    {id:"share",l:"📱 Share"},
     ...(isAdmin?[{id:"admin",l:"⚖️ Umersconi's Office",cls:"admin"}]:[]),
   ];
+
+  // Show Vendettas & BFFs survey modal when admin has unlocked it and player hasn't completed it
+  const showRelSurvey = game?.relationshipsUnlocked && session?.username &&
+    !(game.relationshipsCompleted || []).includes(session.username) &&
+    (game.players || []).includes(session.username) &&
+    (game.players || []).filter(p => p !== session.username).length >= 2;
 
   if (appState==="loading") return (
     <><GlobalStyles/>
@@ -6036,7 +6435,9 @@ export default function App() {
       {view==="chaos"       && <ChaosView game={game} />}
       {view==="killer"      && <KillerView game={game} dispatch={dispatch} session={session} />}
       {view==="minigames"   && <MiniGamesView game={game} dispatch={dispatch} session={session} isAdmin={isAdmin} />}
+      {view==="share"       && <ShareView game={game} session={session} />}
       {view==="admin" && isAdmin && <AdminView game={game} gameId={activeGameId} gameMeta={activeGameMeta} dispatch={dispatch} session={session} onLeaveGame={handleLeaveGame} />}
+      {showRelSurvey && <RelationshipSurveyModal game={game} dispatch={dispatch} session={session} />}
     </div>
     </>
   );
