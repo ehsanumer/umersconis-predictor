@@ -418,7 +418,7 @@ const KILLER_STATS = [
 // Storage handled by Supabase — see src/lib/supabase.js
 
 // ─── GAME STATE FACTORY ───────────────────────────────────────────────────────
-function makeGameState(name, adminUsername) {
+export function makeGameState(name, adminUsername) {
   return {
     name,
     adminId: adminUsername,
@@ -1411,7 +1411,7 @@ function autoGenerateMatchDays(game) {
 }
 
 // ─── GAME REDUCER ─────────────────────────────────────────────────────────────
-function gameReducer(state, action) {
+export function gameReducer(state, action) {
   switch (action.type) {
     case "LOAD": return action.state;
     case "ADD_MATCH": return { ...state, matches:[...(state.matches||[]), action.match] };
@@ -3924,7 +3924,7 @@ function MatchDaysTab({ game, dispatch }) {
 }
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGame }) {
+export function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGame }) {
   const [tab, setTab] = useState("fixtures");
 
   const tabs = [
