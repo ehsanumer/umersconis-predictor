@@ -1128,13 +1128,92 @@ const WC2026_ALL_PLAYERS = Object.entries(WC2026_SQUADS).flatMap(([team, squad])
   squad.map(p => ({ ...p, team }))
 ).sort((a,b)=> a.name.localeCompare(b.name));
 
+// Players born 2003 or later (age ≤23 at WC2026) — used for Best Young Player filter
+const WC2026_U23_PLAYERS = new Set([
+  // Argentina
+  "Valentín Barco","Nico Paz",
+  // Algeria
+  "Ibrahim Maza",
+  // Australia
+  "Alessandro Circati","Lucas Herrington",
+  // Austria
+  "Paul Wanner",
+  // Belgium
+  "Zeno Debast","Nathan Ngoy","Diego Moreira","Matias Fernandez-Pardo",
+  // Bosnia & Herzegovina
+  "Tarik Muharemović","Benjamin Tahirović","Samed Baždar","Kerim Alajbegović",
+  "Mladen Jurkas","Nidal Čelik","Ermin Mahmić","Esmir Bajraktarević",
+  // Brazil
+  "Endrick","Rayan",
+  // Canada
+  "Luc de Fougerolles","Owen Goodman","Niko Sigur","Nathan Saliba",
+  // Croatia
+  "Luka Vušković",
+  // Czechia
+  "Hugo Sochůrek","Denis Višinský","Štěpán Chaloupek","Alexandr Sojka",
+  // DR Congo
+  "Ngal'ayel Mukau",
+  // Ecuador
+  "Kendry Páez",
+  // Egypt
+  "Hamza Abdelkarim",
+  // England
+  "Jude Bellingham","Kobbie Mainoo","Nico O'Reilly",
+  // France
+  "Warren Zaïre-Emery","Désiré Doué","Rayan Cherki",
+  // Germany
+  "Jamal Musiala","Florian Wirtz","Aleksandar Pavlović","Nick Woltemade","Assan Ouédraogo",
+  // Ivory Coast
+  "Yan Diomande","Bazoumana Touré",
+  // Japan
+  "Junnosuke Suzuki","Kento Shiogai",
+  // Mexico
+  "Gilberto Mora","Obed Vargas","Armando González","Mateo Chávez",
+  // Morocco
+  "Ayyoub Bouaddi","Chemsdine Talbi","Bilal El Khannouss",
+  // Netherlands
+  "Jorrel Hato",
+  // Norway
+  "Antonio Nusa",
+  // Paraguay
+  "Julio Enciso",
+  // Portugal
+  "João Neves",
+  // Qatar
+  "Ayoub Al-Oui",
+  // Scotland
+  "Findlay Curtis",
+  // Senegal
+  "Ibrahim Mbaye","Bara Sapoko Ndiaye",
+  // South Africa
+  "Relebohile Mofokeng","Khulumani Ndamane","Mbekezeli Mbokazi",
+  "Samukele Kabini","Ime Okon","Olwethu Makhanya",
+  // South Korea
+  "Bae Jun-ho","Jens Castrop",
+  // Spain
+  "Lamine Yamal","Pau Cubarsí","Gavi",
+  // Sweden
+  "Lucas Bergvall",
+  // Switzerland
+  "Aurèle Amenda",
+  // Tunisia
+  "Rayan Elloumi",
+  // Türkiye
+  "Arda Güler","Kenan Yıldız",
+  // USA
+  "Ricardo Pepi","Alex Freeman","Chris Brady",
+]);
+
 function tournieOptionsFor(cat) {
   if (!cat) return [];
   if (cat.kind === "team") return WC2026_TEAM_NAMES;
   if (cat.kind === "player") {
-    const players = cat.position
+    let players = cat.position
       ? WC2026_ALL_PLAYERS.filter(p => p.position === cat.position)
       : WC2026_ALL_PLAYERS;
+    if (cat.id === "bestYoungPlayer") {
+      players = WC2026_ALL_PLAYERS.filter(p => WC2026_U23_PLAYERS.has(p.name));
+    }
     return players.map(p => `${p.name} (${p.team})`);
   }
   return [];
