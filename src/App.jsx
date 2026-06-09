@@ -2372,7 +2372,7 @@ function TournieView({ game, dispatch, session }) {
   return (
     <div className="page"><SectionTooltip id="tournies" />
       <div className="section-header"><div className="section-title">Tournament Predictions</div><div className="section-sub">50 pts each × correct scores = Tournie Score</div></div>
-      <div className="notice" style={{background:deadlinePassed?"rgba(192,57,43,0.1)":"rgba(201,168,76,0.1)",borderColor:deadlinePassed?"var(--red)":"rgba(201,168,76,0.3)",color:deadlinePassed?"var(--red)":"var(--ink)"}}>
+      <div className="notice" style={{background:deadlinePassed?"rgba(192,57,43,0.1)":"rgba(201,168,76,0.1)",borderColor:deadlinePassed?"var(--red)":"rgba(201,168,76,0.3)",color:deadlinePassed?"var(--red)":"#ffffff"}}>
         {deadlinePassed?`⚠ Deadline passed: ${formatDeadline(deadline)}. Locked.`:deadline?`⏱ Deadline: ${formatDeadline(deadline)}`:"⏱ No deadline set — predictions open."}
       </div>
       {(!deadlinePassed||hasSubmitted)&&(
@@ -2396,7 +2396,7 @@ function TournieView({ game, dispatch, session }) {
           {!deadlinePassed&&(
             <div className="flex-end">
               {isDirty&&<button className="btn btn-pitch" onClick={()=>{setDraft({...myPreds});setExcuse(myPreds.__excuse||"");}}>Discard</button>}
-              <button className="btn btn-gold" onClick={handleSave} disabled={!isDirty}>{saved?"✓ Saved":hasSubmitted?"Update":"Submit Predictions"}</button>
+              <button className="btn btn-gold" onClick={handleSave} disabled={!isDirty}>{saved||(!isDirty&&hasSubmitted)?"✓ Saved":"Save"}</button>
             </div>
           )}
           {isFirstLate&&(
