@@ -200,7 +200,8 @@ const GlobalStyles = () => (
     .admin-label { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 12px; color: var(--silver); }
     .admin-input { background: rgba(255,255,255,0.04); border: 1px solid rgba(204,16,32,0.3); border-radius: 3px; color: var(--cream); padding: 9px 12px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; transition: border-color 0.2s; }
     .admin-input:focus { outline: none; border-color: var(--red); }
-    .admin-input option { background: #060F22; }
+    select option { background-color: #1a1a2e; color: #ffffff; }
+    .admin-input option { background: #060F22; color: #ffffff; }
 
     /* BUTTONS */
     .btn { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 14px; padding: 10px 22px; border: none; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
@@ -222,6 +223,7 @@ const GlobalStyles = () => (
     /* PRED INPUTS */
     .pred-input { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; padding: 7px 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; width: 100%; color: var(--cream); }
     .pred-input:focus { outline: none; border-color: var(--red); }
+    .pred-input option { background: #1a1a2e; color: #ffffff; }
 
     /* LOGIN */
     .login-screen {
@@ -254,7 +256,7 @@ const GlobalStyles = () => (
     .login-label { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 2px; font-size: 11px; color: var(--silver); }
     .login-input { background: rgba(255,255,255,0.04); border: 1px solid rgba(204,16,32,0.25); border-radius: 3px; color: var(--cream); padding: 11px 14px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; width: 100%; transition: border-color 0.2s; }
     .login-input:focus { outline: none; border-color: var(--red); }
-    .login-input option { background: #060F22; }
+    .login-input option { background: #060F22; color: #ffffff; }
     .login-error { background: rgba(204,16,32,0.12); border: 1px solid var(--red); border-radius: 3px; color: #ff7088; padding: 9px 12px; font-size: 13px; margin-bottom: 14px; text-align: left; }
     .login-btn { width: 100%; font-family: 'Anton', sans-serif; letter-spacing: 4px; font-size: 15px; padding: 13px; border: none; border-radius: 3px; background: var(--red); color: white; cursor: pointer; transition: all 0.15s; margin-top: 4px; box-shadow: 0 4px 20px rgba(204,16,32,0.5); }
     .login-btn:hover { background: var(--gold-light); }
