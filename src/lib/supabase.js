@@ -114,6 +114,22 @@ export async function removePlayerFromGame(gameId, username) {
   await supabase.from('game_players').delete().eq('game_id', gameId).eq('username', username)
 }
 
+export async function renamePlayerInDB(gameId, oldName, newName) {
+  // 1. game_players table — must succeed or the player loses game access
+  const { error: gpErr } = await supabase
+    .from('game_players')
+    .update({ username: newName })
+    .eq('game_id', gameId)
+    .eq('username', oldName)
+  if (gpErr) throw gpErr
+  // 2. profiles table — so email lookup and Reset Password keep working
+  //    Non-fatal: player may not have a profile row (e.g. manually added admin entries)
+  await supabase
+    .from('profiles')
+    .update({ username: newName })
+    .eq('username', oldName)
+}
+
 export async function getPlayerEmails(usernames) {
   const { data } = await supabase.from('profiles').select('username, email').in('username', usernames)
   return Object.fromEntries((data||[]).map(r => [r.username, r.email]))

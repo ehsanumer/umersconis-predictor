@@ -49,7 +49,7 @@ function aliasNorm(name) {
 // Maps a finished API-Football fixture to { home, away, result, score },
 // correctly encoding normal-time / extra-time / penalty-shootout outcomes —
 // mirroring mapApiMatch() in src/App.jsx.
-function mapFixtureResult(fixture) {
+export function mapFixtureResult(fixture) {
   const statusShort = fixture.fixture?.status?.short
   const finished = ['FT', 'AET', 'PEN'].includes(statusShort)
   if (!finished || fixture.goals?.home == null || fixture.goals?.away == null) return null

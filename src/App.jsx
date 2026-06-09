@@ -3,7 +3,7 @@ import {
   supabase, signUp, signIn, signOut, getSession, onAuthChange,
   getGamesIndex, createGameInDB, findGameByJoinCode, getUserGames,
   loadGameState, saveGameState, subscribeToGame, unsubscribeFromGame,
-  getUsernameForUser, addPlayerToGame, removePlayerFromGame, getPlayerEmails,
+  getUsernameForUser, addPlayerToGame, removePlayerFromGame, renamePlayerInDB, getPlayerEmails,
   resetPasswordForEmail, updatePassword, getAllGames, deleteGame, getGamePlayerCounts,
 } from "./lib/supabase.js";
 
@@ -1140,7 +1140,7 @@ function tournieOptionsFor(cat) {
 
 
 // ─── MINI GAME SCORE AGGREGATOR ───────────────────────────────────────────────
-function calcMiniGameScores(game) {
+export function calcMiniGameScores(game) {
   const scores = {};
   (game.players||[]).forEach(p => { scores[p] = 0; });
 
@@ -1205,7 +1205,7 @@ function calcMiniGameScores(game) {
 }
 
 // ─── SCORING ENGINE ───────────────────────────────────────────────────────────
-function forfeitPenalty(match) {
+export function forfeitPenalty(match) {
   if (match.stage === "group") return -10;
   if (match.round === "r32" || match.round === "r16") return -20;
   return -40;
@@ -1215,7 +1215,7 @@ function forfeitPenalty(match) {
 // e.g. "2-0" → { goals:"2-0", method:"normal" }
 //      "2-0 (AET)" → { goals:"2-0", method:"aet" }
 //      "1-1 (PENS)" → { goals:"1-1", method:"pens" }
-function parseScoreStr(s) {
+export function parseScoreStr(s) {
   if (!s) return { goals:"", method:"normal" };
   const aet  = /\(AET\)/i.test(s);
   const pens = /\(PENS\)/i.test(s);
@@ -1230,13 +1230,13 @@ function parseScoreStr(s) {
 //   - For PENS: scoreline is the 90+ET score, winner is encoded in result (H/A)
 //     so goals+method match = perfect, regardless of who won the shootout
 //     (the "who won" is already captured in result matching)
-function isPerfectScore(predScore, actualScore) {
+export function isPerfectScore(predScore, actualScore) {
   const p = parseScoreStr(predScore);
   const a = parseScoreStr(actualScore);
   return p.goals === a.goals && p.method === a.method;
 }
 
-function calcScores(game) {
+export function calcScores(game) {
   const scores = {};
   game.players.forEach(p => { scores[p] = { base:0, streaks:0, tournies:0, umersconi:0, infinetinos:0, killer:0, miniGames:0, powerPlay:0, total:0, correctScores:0 }; });
 
@@ -1322,9 +1322,9 @@ function calcScores(game) {
 }
 
 // ─── KILLER ENGINE ────────────────────────────────────────────────────────────
-function isWithinTolerance(pred, actual) { return pred >= actual*0.9 && pred <= actual*1.1; }
+export function isWithinTolerance(pred, actual) { return pred >= actual*0.9 && pred <= actual*1.1; }
 
-function calcKillerQuestion(statId, players, predictions, actual) {
+export function calcKillerQuestion(statId, players, predictions, actual) {
   if (actual === null || actual === undefined || actual === "") return null;
   const act = Number(actual);
   const eligible = players.map(p => ({ player:p, pred:Number(predictions[p]?.[statId]??NaN) })).filter(x => !isNaN(x.pred) && isWithinTolerance(x.pred, act));
@@ -1334,7 +1334,7 @@ function calcKillerQuestion(statId, players, predictions, actual) {
   return { winners: winners.map(w=>w.player), houseWins:false, exact: winners[0].pred===act };
 }
 
-function calcKillerAggregate(players, predictions, actuals, cats) {
+export function calcKillerAggregate(players, predictions, actuals, cats) {
   const statList = cats||KILLER_STATS;
   const actualAgg = statList.reduce((s,st) => s+(Number(actuals?.[st.id])||0), 0);
   if (!actualAgg) return { star:null, worst:null, actualAgg:0, playerAggs:{} };
@@ -1344,7 +1344,7 @@ function calcKillerAggregate(players, predictions, actuals, cats) {
   return { star:dists[0]?.player, worst:dists[dists.length-1]?.player, actualAgg, playerAggs };
 }
 
-function calcKillerScores(game) {
+export function calcKillerScores(game) {
   const scores = {};
   (game.players||[]).forEach(p => { scores[p] = { gain:0, loss:0, net:0 }; });
   (game.killerRounds||[]).filter(r=>r.resolved).forEach(round => {
@@ -1359,15 +1359,15 @@ function calcKillerScores(game) {
 }
 
 // ─── DEADLINE HELPERS ─────────────────────────────────────────────────────────
-function getTournieDeadline(game) {
+export function getTournieDeadline(game) {
   if (game.tournieDeadline) return new Date(game.tournieDeadline);
   const kickoffs = (game.matches||[]).map(m=>m.kickoff).filter(Boolean).map(k=>new Date(k));
   if (!kickoffs.length) return null;
   return new Date(Math.min(...kickoffs) - 3600000);
 }
-function isTournieDeadlinePassed(game) { const d=getTournieDeadline(game); return d ? new Date()>d : false; }
-function getMatchDeadline(match) { return match.kickoff ? new Date(new Date(match.kickoff).getTime()-3600000) : null; }
-function isMatchDeadlinePassed(match) { const d=getMatchDeadline(match); return d ? new Date()>d : false; }
+export function isTournieDeadlinePassed(game) { const d=getTournieDeadline(game); return d ? new Date()>d : false; }
+export function getMatchDeadline(match) { return match.kickoff ? new Date(new Date(match.kickoff).getTime()-3600000) : null; }
+export function isMatchDeadlinePassed(match) { const d=getMatchDeadline(match); return d ? new Date()>d : false; }
 function formatDeadline(date) { if(!date) return "Not set"; return date.toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}); }
 function formatKickoff(iso) {
   if (!iso) return "";
@@ -1388,7 +1388,7 @@ function isoToDateStr(iso) {
 
 // Auto-generate Match Day objects from a game's matches, sorted by date.
 // Merges with any existing matchDays so custom labels are preserved.
-function autoGenerateMatchDays(game) {
+export function autoGenerateMatchDays(game) {
   const matches = (game.matches||[]).filter(m=>m.kickoff);
   // Group match IDs by calendar date
   const byDate = {};
@@ -1506,13 +1506,77 @@ export function gameReducer(state, action) {
     }
     case "RENAME_PLAYER": {
       const {oldName, newName} = action;
+      // Migrate an object key: { [oldName]: v } → { [newName]: v }
+      const renKey = obj => {
+        if (!obj || !(oldName in obj)) return obj;
+        const n = {...obj};
+        n[newName] = n[oldName];
+        delete n[oldName];
+        return n;
+      };
+      const swap = v => v === oldName ? newName : v;
+
+      // Match predictions: { [matchId]: { [playerName]: pred } }
       const preds = {...(state.predictions||{})};
-      Object.keys(preds).forEach(mid => { const m={...preds[mid]}; if(m[oldName]!==undefined){m[newName]=m[oldName]; delete m[oldName];} preds[mid]=m; });
-      return { ...state,
-        players:(state.players||[]).map(x=>x===oldName?newName:x),
-        predictions:preds,
-        umersconiAwards:(state.umersconiAwards||[]).map(a=>a.player===oldName?{...a,player:newName}:a),
-        infinetinos:(state.infinetinos||[]).map(a=>a.player===oldName?{...a,player:newName}:a),
+      Object.keys(preds).forEach(mid => { preds[mid] = renKey(preds[mid]); });
+
+      // Tournament predictions: { [playerName]: { [catId]: value } }
+      const tournamentPredictions = renKey(state.tournamentPredictions||{});
+
+      // Killer rounds — predictions map keys + all resolved player fields
+      const killerRounds = (state.killerRounds||[]).map(r => ({
+        ...r,
+        predictions: renKey(r.predictions||{}),
+        steals:        (r.steals||[]).map(s=>({...s,winner:swap(s.winner),victim:swap(s.victim)})),
+        houseSteals:   (r.houseSteals||[]).map(s=>({...s,victim:swap(s.victim)})),
+        starBonus:     r.starBonus!=null ? swap(r.starBonus) : r.starBonus,
+        starPredAwards: (r.starPredAwards||[]).map(a=>({...a,player:swap(a.player)})),
+        worstPredAwards:(r.worstPredAwards||[]).map(a=>({...a,player:swap(a.player)})),
+      }));
+
+      // Mini-games — cover every type's player-name fields
+      const miniGames = (state.miniGames||[]).map(mg => {
+        const u = {};
+        // emoji_bonus: puzzles[].winner, guesses keys
+        if (mg.puzzles) u.puzzles = mg.puzzles.map(p=>({...p,winner:swap(p.winner),guesses:renKey(p.guesses||{})}));
+        // who_am_i: winner
+        if (mg.winner!=null) u.winner = swap(mg.winner);
+        // bounty: resolvedKills/bloodlust hunter+victim, tags/bloodlustTargets keys
+        if (mg.resolvedKills) u.resolvedKills = mg.resolvedKills.map(k=>({...k,hunter:swap(k.hunter),victim:swap(k.victim)}));
+        if (mg.bloodlust)     u.bloodlust     = mg.bloodlust.map(k=>({...k,hunter:swap(k.hunter),victim:swap(k.victim)}));
+        if (mg.tags)               u.tags               = renKey(mg.tags);
+        if (mg.bloodlustTargets)   u.bloodlustTargets   = renKey(mg.bloodlustTargets);
+        // traitors: resolvedActions[].player, votes/roles keys
+        if (mg.resolvedActions) u.resolvedActions = mg.resolvedActions.map(a=>({...a,player:swap(a.player)}));
+        if (mg.votes)  u.votes  = renKey(mg.votes);
+        if (mg.roles)  u.roles  = renKey(mg.roles);
+        // duels: results[].player1/player2/winner
+        if (mg.results) u.results = mg.results.map(r=>({...r,player1:swap(r.player1),player2:swap(r.player2),winner:swap(r.winner)}));
+        return Object.keys(u).length ? {...mg,...u} : mg;
+      });
+
+      // Relationships survey data
+      const relationships        = renKey(state.relationships||{});
+      const relationshipsCompleted = (state.relationshipsCompleted||[]).map(swap);
+
+      // Autopilot player notes
+      const autopilot = state.autopilot ? {
+        ...state.autopilot,
+        playerNotes: renKey(state.autopilot.playerNotes||{}),
+      } : state.autopilot;
+
+      return {
+        ...state,
+        players:              (state.players||[]).map(swap),
+        predictions:          preds,
+        tournamentPredictions,
+        killerRounds,
+        miniGames,
+        umersconiAwards:      (state.umersconiAwards||[]).map(a=>a.player===oldName?{...a,player:newName}:a),
+        infinetinos:          (state.infinetinos||[]).map(a=>a.player===oldName?{...a,player:newName}:a),
+        relationships,
+        relationshipsCompleted,
+        autopilot,
       };
     }
     default: return state;
@@ -4345,6 +4409,9 @@ function PlayersTab({ game, gameId, dispatch, session }) {
     if (game.players.includes(n)) { flash(player, `${n} is already a player`, true); return; }
     setBusy(b=>({...b,[player]:true}));
     try {
+      // Update game_players + profiles tables BEFORE touching local state so
+      // that if the DB call fails the game state stays consistent.
+      await renamePlayerInDB(gameId, player, n);
       dispatch({type:"RENAME_PLAYER", oldName:player, newName:n});
       flash(n, `Renamed from ${player} ✓`);
     } catch(e) { flash(player, "Error: "+e.message, true); }
@@ -5163,7 +5230,7 @@ function mapApiMatch(fixture) {
 // used in our fixtures/squads data. We normalize + alias-map both sides so a
 // fixture can be matched to "our" match purely by team names (API fixture IDs
 // don't correspond to our internal "m1"-style match IDs).
-function normalizeTeamName(name) {
+export function normalizeTeamName(name) {
   return (name||"")
     .toLowerCase()
     .normalize("NFD").replace(/[̀-ͯ]/g,"")  // strip diacritics
@@ -5183,13 +5250,13 @@ const API_TEAM_ALIASES = {
   "democratic republic of the congo": "dr congo",
   "cabo verde": "cape verde",
 };
-function aliasNorm(name) {
+export function aliasNorm(name) {
   const n = normalizeTeamName(name);
   return API_TEAM_ALIASES[n] || n;
 }
 // Finds the internal match ({id, teams:"Home v Away"}) that corresponds to an
 // API fixture's home/away team names, tolerating naming variants.
-function findMatchForApiTeams(matches, homeApi, awayApi) {
+export function findMatchForApiTeams(matches, homeApi, awayApi) {
   const h = aliasNorm(homeApi), a = aliasNorm(awayApi);
   return (matches||[]).find(m => {
     if (!m.teams?.includes(" v ")) return false;
@@ -5578,7 +5645,7 @@ function RecapView({ game }) {
 }
 
 // ─── SHARED HELPERS ───────────────────────────────────────────────────────────
-function getPlayerForm(game, player, n=6) {
+export function getPlayerForm(game, player, n=6) {
   const sorted = [...(game.matches||[])].filter(m=>m.result)
     .sort((a,b)=>new Date(b.kickoff||0)-new Date(a.kickoff||0));
   return sorted.slice(0,n).map(m=>{
@@ -5904,7 +5971,7 @@ const TEAM_FLAGS = {
 };
 function teamFlag(name) { return TEAM_FLAGS[name] || "⚽"; }
 
-function generateShareText(game, matchDayId) {
+export function generateShareText(game, matchDayId) {
   const scores = calcScores(game);
   const players = game.players || [];
   const allFinished = (game.matches || []).filter(m => m.result);
@@ -6002,7 +6069,7 @@ function ShareView({ game, session }) {
 }
 
 // ─── VENDETTAS & BFFs ─────────────────────────────────────────────────────────
-function RelationshipSurveyModal({ game, dispatch, session }) {
+export function RelationshipSurveyModal({ game, dispatch, session }) {
   const player = session?.username;
   const others = (game.players || []).filter(p => p !== player);
   const [vendettas, setVendettas] = useState([{ target:"", reason:"" }]);
@@ -6238,7 +6305,7 @@ function useTooltipDismiss(id) {
   return [dismissed, dismiss];
 }
 
-function SectionTooltip({ id }) {
+export function SectionTooltip({ id }) {
   const text = SECTION_TOOLTIPS[id];
   const [dismissed, dismiss] = useTooltipDismiss(id);
   if (!text || dismissed) return null;
