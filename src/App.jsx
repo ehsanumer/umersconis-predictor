@@ -16,7 +16,7 @@ const GlobalStyles = () => (
       --gold: #CC1020; --gold-light: #E8152A;
       --cream: #FFFFFF; --ink: #060F22;
       --red: #CC1020; --red-dark: #9A0C18;
-      --silver: #5A7AA0; --card-bg: #142846;
+      --silver: #B8D0E8; --card-bg: #142846;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
