@@ -16,7 +16,7 @@ const GlobalStyles = () => (
       --gold: #CC1020; --gold-light: #E8152A;
       --cream: #FFFFFF; --ink: #060F22;
       --red: #CC1020; --red-dark: #9A0C18;
-      --silver: #B8D0E8; --card-bg: #142846;
+      --silver: #FFFFFF; --card-bg: #142846;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -108,7 +108,7 @@ const GlobalStyles = () => (
     /* LEADERBOARD */
     .lb-row {
       background: #142846; border: 1px solid rgba(204,16,32,0.15); border-radius: 0; display: grid;
-      grid-template-columns: 48px 1fr 90px 70px 70px 70px 70px 90px 70px 70px;
+      grid-template-columns: 48px 1fr 90px 70px 70px 70px 70px 90px 70px 70px 70px;
       align-items: center; padding: 14px 16px; transition: all 0.2s; position: relative; overflow: hidden;
       background-image: repeating-linear-gradient(135deg, transparent 0, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px);
     }
