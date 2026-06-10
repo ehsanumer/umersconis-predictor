@@ -1838,6 +1838,13 @@ export function gameReducer(state, action) {
       return { ...state, tombola: { ...(state.tombola||{}), thirdPlace: action.team } };
     case "TOMBOLA_LOCK":
       return { ...state, tombola: { ...(state.tombola||{}), locked: action.locked } };
+    case "TOMBOLA_ALLOCATE_OVERFLOW": {
+      const d = { ...(state.tombola?.draws || {}) };
+      Object.entries(action.assignments).forEach(([player, teams]) => {
+        d[player] = [...(d[player] || []), ...teams];
+      });
+      return { ...state, tombola: { ...(state.tombola||{}), draws: d } };
+    }
     default: return state;
   }
 }
@@ -2169,7 +2176,7 @@ function GameSelectScreen({ session, onSelectGame, onLogout, onSuperAdmin, pendi
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────────────────────
-function Leaderboard({ game }) {
+function Leaderboard({ game, onShare }) {
   const scores = calcScores(game);
   const ranked = [...game.players].sort((a,b)=>scores[b].total-scores[a].total);
   const rc = i => i===0?"rank-1":i===1?"rank-2":i===2?"rank-3":"";
@@ -2235,7 +2242,11 @@ function Leaderboard({ game }) {
         </div>
       </div>
       <div className="page"><SectionTooltip id="leaderboard" />
-        <div className="section-header"><div className="section-title">Standings</div><div className="section-sub">Updated after each result</div></div>
+        <div className="section-header">
+          <div className="section-title">Standings</div>
+          <div className="section-sub">Updated after each result</div>
+          {onShare&&<button className="btn btn-sm btn-pitch" style={{marginLeft:"auto"}} onClick={onShare}>📱 Share</button>}
+        </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           <div className="lb-row header-row">
             <div>#</div>
@@ -2474,40 +2485,52 @@ function MatchesView({ game, dispatch, session }) {
                           {deadlinePassed?"⚠ LATE SUBMISSION":"YOUR PREDICTION"}
                         </div>
                         {myPred&&!submitting[match.id]?(
-                          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                            <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:17,color:"var(--cream)"}}>
-                              {myPred.result==="H"?homeTeam:myPred.result==="A"?awayTeam:"Draw"} · {myPred.score||"?-?"}
-                              {myPred.score?.includes("(PENS)")&&<span style={{fontSize:12,color:"#8e44ad",marginLeft:6}}>{myPred.result==="H"?homeTeam:awayTeam} on pens</span>}
-                            </span>
-                            {myPred.late&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>late</span>}
-                            {myPred.excuse&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>"{myPred.excuse}"</span>}
-                            <button className="btn btn-sm btn-pitch" onClick={()=>{
-                              const s=parseS(myPred.score,myPred.result);
-                              setErrors(p=>{const n={...p};delete n[match.id];return n;});
-                              setSubmitting(p=>({...p,[match.id]:{scoreHome:s.home,scoreAway:s.away,method:s.method,pensWinner:s.pensWinner,excuse:myPred.excuse||""}}));
-                            }}>Edit</button>
-                            {(()=>{
-                              if (deadlinePassed) return null;
-                              const bucket = getPowerPlayBucket(match);
-                              if (!bucket) return null;
-                              const usage = getPowerPlayUsage(game, myPlayer);
-                              const usedHere = !!myPred.powerPlay;
-                              const blockedByOther = usage[bucket] && usage[bucket]!==match.id;
-                              const stageLabel = POWERPLAY_STAGES.find(s=>s.id===bucket)?.label || bucket;
-                              if (blockedByOther) {
-                                const otherMatch = (game.matches||[]).find(m=>m.id===usage[bucket]);
-                                return <span style={{fontSize:11,color:"var(--silver)",fontStyle:"italic"}}>⚡ {stageLabel} PowerPlay already used{otherMatch?` (${otherMatch.teams})`:""}</span>;
-                              }
-                              return (
-                                <button
-                                  className={`btn btn-sm ${usedHere?"btn-gold":"btn-pitch"}`}
-                                  style={usedHere?{boxShadow:"0 0 14px rgba(204,16,32,0.6)",borderColor:"var(--red)"}:{}}
-                                  title={usedHere?"Click to cancel — 10× if you nail the score, -20 if you don't":`Use your ${stageLabel} PowerPlay on this match — 10× points for a correct score, ${POWERPLAY_PENALTY} flat otherwise`}
-                                  onClick={()=>dispatch({type:"TOGGLE_POWERPLAY",matchId:match.id,player:myPlayer})}>
-                                  ⚡ {usedHere?`PowerPlay ON (${stageLabel})`:`Play ${stageLabel} PowerPlay`}
-                                </button>
-                              );
-                            })()}
+                          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                            {/* Prediction score row */}
+                            <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
+                              {(()=>{
+                                const base=(myPred.score||"?-?").replace(/\(.*\)/,"");
+                                const [ph,pa]=base.split("-");
+                                return <>
+                                  <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:16,color:"var(--cream)"}}>{homeTeam}</span>
+                                  <span style={{fontFamily:"Anton,sans-serif",fontSize:20,color:"var(--cream)",letterSpacing:1}}>{ph??0}–{pa??0}</span>
+                                  <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:16,color:"var(--cream)"}}>{awayTeam}</span>
+                                  {myPred.score?.includes("(PENS)")&&<span style={{fontSize:12,color:"#8e44ad"}}>{myPred.result==="H"?homeTeam:awayTeam} on pens</span>}
+                                  {myPred.late&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>late</span>}
+                                  {myPred.excuse&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>"{myPred.excuse}"</span>}
+                                </>;
+                              })()}
+                            </div>
+                            {/* Buttons row */}
+                            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                              <button className="btn btn-sm btn-pitch" onClick={()=>{
+                                const s=parseS(myPred.score,myPred.result);
+                                setErrors(p=>{const n={...p};delete n[match.id];return n;});
+                                setSubmitting(p=>({...p,[match.id]:{scoreHome:s.home,scoreAway:s.away,method:s.method,pensWinner:s.pensWinner,excuse:myPred.excuse||""}}));
+                              }}>Edit</button>
+                              {(()=>{
+                                if (deadlinePassed) return null;
+                                const bucket = getPowerPlayBucket(match);
+                                if (!bucket) return null;
+                                const usage = getPowerPlayUsage(game, myPlayer);
+                                const usedHere = !!myPred.powerPlay;
+                                const blockedByOther = usage[bucket] && usage[bucket]!==match.id;
+                                const stageLabel = POWERPLAY_STAGES.find(s=>s.id===bucket)?.label || bucket;
+                                if (blockedByOther) {
+                                  const otherMatch = (game.matches||[]).find(m=>m.id===usage[bucket]);
+                                  return <span style={{fontSize:11,color:"var(--silver)",fontStyle:"italic"}}>⚡ {stageLabel} PowerPlay already used{otherMatch?` (${otherMatch.teams})`:""}</span>;
+                                }
+                                return (
+                                  <button
+                                    className={`btn btn-sm ${usedHere?"btn-gold":"btn-pitch"}`}
+                                    style={usedHere?{boxShadow:"0 0 14px rgba(204,16,32,0.6)",borderColor:"var(--red)"}:{}}
+                                    title={usedHere?"Click to cancel — 10× if you nail the score, -20 if you don't":`Use your ${stageLabel} PowerPlay on this match — 10× points for a correct score, ${POWERPLAY_PENALTY} flat otherwise`}
+                                    onClick={()=>dispatch({type:"TOGGLE_POWERPLAY",matchId:match.id,player:myPlayer})}>
+                                    ⚡ {usedHere?`PowerPlay ON (${stageLabel})`:`Play ${stageLabel} PowerPlay`}
+                                  </button>
+                                );
+                              })()}
+                            </div>
                           </div>
                         ):(
                           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2568,9 +2591,13 @@ function MatchesView({ game, dispatch, session }) {
                       </div>
                     )}
                     {hasResult&&myPred&&(
-                      <div style={{padding:"8px 16px",borderBottom:"1px solid rgba(201,168,76,0.15)",background:"#f8f8f8",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                      <div style={{padding:"8px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.03)",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
                         <span style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)"}}>YOUR PREDICTION</span>
-                        <span style={{fontFamily:"Oswald,sans-serif",fontSize:15}}>{myPred.result==="H"?homeTeam:myPred.result==="A"?awayTeam:"Draw"} · {myPred.score||"?-?"}</span>
+                        {(()=>{
+                          const base=(myPred.score||"?-?").replace(/\(.*\)/,"");
+                          const [ph,pa]=base.split("-");
+                          return <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:15,color:"var(--cream)"}}>{homeTeam} {ph??0}–{pa??0} {awayTeam}</span>;
+                        })()}
                         {myPred.late&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>late</span>}
                         {myPred.excuse&&<span style={{fontSize:11,color:"var(--red)",fontStyle:"italic"}}>"{myPred.excuse}"</span>}
                         {myPred.powerPlay&&(()=>{
@@ -2844,8 +2871,22 @@ function TombolaAdminTab({ game, dispatch }) {
     dispatch({ type: "TOMBOLA_SET_THIRD_PLACE", team: tp });
   }
 
-  const allDrawn   = Object.values(tombola.draws || {}).flat();
-  const drawCounts = game.players.map(p => ({ player: p, count: (tombola.draws?.[p] || []).length }));
+  const allDrawn     = Object.values(tombola.draws || {}).flat();
+  const allRemaining = WC2026_TEAM_NAMES.filter(t => !allDrawn.includes(t));
+  const drawCounts   = game.players.map(p => ({ player: p, count: (tombola.draws?.[p] || []).length }));
+  const allPlayersDone = game.players.every(p => (tombola.draws?.[p] || []).length >= 3);
+
+  function handleAllocateOverflow() {
+    if (!allRemaining.length) return;
+    if (!window.confirm(`Randomly allocate ${allRemaining.length} remaining team${allRemaining.length!==1?"s":""} across all ${game.players.length} players? This cannot be undone.`)) return;
+    const shuffled = [...allRemaining].sort(() => Math.random() - 0.5);
+    const assignments = {};
+    game.players.forEach(p => { assignments[p] = []; });
+    shuffled.forEach((team, i) => {
+      assignments[game.players[i % game.players.length]].push(team);
+    });
+    dispatch({ type: "TOMBOLA_ALLOCATE_OVERFLOW", assignments });
+  }
 
   return (
     <div style={{padding:"20px 0"}}>
@@ -2911,8 +2952,30 @@ function TombolaAdminTab({ game, dispatch }) {
         ))}
       </div>
       <div style={{marginTop:12,fontSize:12,color:"rgba(255,255,255,0.3)"}}>
-        {allDrawn.length} / {Math.min(game.players.length * 3, 48)} teams drawn · {48 - allDrawn.length} remaining
+        {allDrawn.length} / {Math.min(game.players.length * 3, 48)} teams drawn · {allRemaining.length} remaining
       </div>
+
+      {/* Overflow allocation — appears once all players have used their 3 draws */}
+      {allPlayersDone && allRemaining.length > 0 && (
+        <div style={{marginTop:28,padding:"16px 20px",background:"rgba(204,16,32,0.08)",border:"1px solid rgba(204,16,32,0.3)",borderRadius:8}}>
+          <div style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:2,color:"var(--silver)",marginBottom:8}}>
+            🎲 OVERFLOW DRAW — {allRemaining.length} TEAMS UNALLOCATED
+          </div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:12,fontStyle:"italic"}}>
+            All players have used their 3 draws. Run the overflow draw to randomly assign the remaining {allRemaining.length} team{allRemaining.length!==1?"s":""} across all players.
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+            {allRemaining.map(t => (
+              <span key={t} style={{padding:"3px 10px",background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:4,fontSize:12,fontFamily:"Oswald,sans-serif",color:"var(--silver)"}}>
+                {TEAM_FLAGS[t]||""} {t}
+              </span>
+            ))}
+          </div>
+          <button className="admin-btn" style={{background:"var(--red)",color:"white",borderColor:"var(--red)"}} onClick={handleAllocateOverflow}>
+            🎲 Randomly Allocate {allRemaining.length} Remaining Team{allRemaining.length!==1?"s":""}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -7023,11 +7086,10 @@ export default function App() {
 
   // Hamburger menu groups
   const menuGroups = [
-    { label: "My Game",    items: [{id:"mypicks",l:"My Picks"},{id:"h2h",l:"H2H"}] },
-    { label: "Tournament", items: [{id:"bracket",l:"🔲 Bracket"},{id:"recap",l:"Recap"},{id:"awards",l:"🏆 Awards"}] },
-    { label: "Side Games", items: [{id:"killer",l:"⚔ Killer"},{id:"minigames",l:"🎲 Mini Games"}] },
-    { label: null,         items: [
-        {id:"share",l:"📱 Share"},
+    { label: "🎯 My Game",    items: [{id:"mypicks",l:"👤 My Picks"},{id:"h2h",l:"⚔️ Head to Head"}] },
+    { label: "🏆 Tournament", items: [{id:"bracket",l:"🔲 Bracket"},{id:"recap",l:"📋 Recap"},{id:"awards",l:"🏆 Awards"}] },
+    { label: "🎲 Side Games", items: [{id:"killer",l:"⚔️ Killer"},{id:"minigames",l:"🎲 Mini Games"}] },
+    { label: null,            items: [
         ...(game?.tombola?.locked ? [{id:"tombola",l:"🎰 Tombola"}] : []),
         ...(isAdmin ? [{id:"admin",l:"⚖️ Umersconi's Office",cls:"admin"}] : []),
       ]
@@ -7105,7 +7167,7 @@ export default function App() {
         </div>
       </header>
 
-      {view==="leaderboard" && <Leaderboard game={game} />}
+      {view==="leaderboard" && <Leaderboard game={game} onShare={()=>setView("share")} />}
       {view==="mypicks"     && <MyPicksView game={game} session={session} />}
       {view==="matches"     && <MatchesView game={game} dispatch={dispatch} session={session} />}
       {view==="recap"       && <RecapView game={game} />}
