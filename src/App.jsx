@@ -6429,15 +6429,23 @@ export default function App() {
 
   // Boot — check Supabase session
   useEffect(() => {
+    // Detect password-recovery redirect before any async session checks.
+    // Supabase puts type=recovery in the URL hash (implicit flow) or query (PKCE).
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const queryParams = new URLSearchParams(window.location.search);
+    const isRecovery = hashParams.get('type') === 'recovery' || queryParams.get('type') === 'recovery';
+    if (isRecovery) setAppState("reset-password");
+
     getSession().then(async s => {
       if (s?.user) {
         const username = await getUsernameForUser(s.user.id, s.user.email);
         setSession({ username, email: s.user.email, userId: s.user.id });
-        setAppState("game-select");
-      } else {
+        // Don't overwrite reset-password state — onAuthChange or the URL check already set it
+        setAppState(prev => prev === "reset-password" ? prev : "game-select");
+      } else if (!isRecovery) {
         setAppState("login");
       }
-    }).catch(() => setAppState("login"));
+    }).catch(() => { if (!isRecovery) setAppState("login"); });
 
     // Listen for auth changes (logout from another tab, password recovery, etc.)
     const { data: { subscription } } = onAuthChange((event, s) => {
