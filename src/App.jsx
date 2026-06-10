@@ -2642,7 +2642,7 @@ function TombolaView({ game, dispatch, session }) {
         {/* Header */}
         <div className="tombola-header">
           <div className="tombola-title">🇺🇸 TOMBOLA 🇺🇸</div>
-          <div className="tombola-subtitle">3 DRAWS PER PLAYER · ONE NATION PER PLAYER · 500 / 250 / 100 PTS</div>
+          <div className="tombola-subtitle">3 DRAWS PER PLAYER · 1 NATION PER DRAW · 500 / 250 / 100 PTS</div>
         </div>
 
         {/* Drum + draw stage */}
