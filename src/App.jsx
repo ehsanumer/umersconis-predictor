@@ -465,6 +465,7 @@ const TOURNIE_CATEGORIES = [
   { id: "runnerUp", label: "Runners Up", kind: "team" },
   { id: "playerOfTournament", label: "Player of Tournament", kind: "player" },
   { id: "bestYoungPlayer", label: "Best Young Player", kind: "player" },
+  { id: "bestGoldenOldie", label: "Best Golden Oldie", kind: "player" },
   { id: "topScorer", label: "Top Scorer", kind: "player" },
   { id: "mvpGK", label: "MVP — Goalkeeper", kind: "player", position: "GK" },
   { id: "mvpDEF", label: "MVP — Defender", kind: "player", position: "DF" },
@@ -1312,6 +1313,30 @@ const WC2026_U23_PLAYERS = new Set([
   "Ricardo Pepi","Alex Freeman","Chris Brady",
 ]);
 
+// Top-20 oldest players at WC2026 (eligible for Best Golden Oldie)
+const WC2026_GOLDEN_OLDIES = [
+  { name: "Craig Gordon",       team: "Scotland" },
+  { name: "Cristiano Ronaldo",  team: "Portugal" },
+  { name: "Guillermo Ochoa",    team: "Mexico" },
+  { name: "Luka Modric",        team: "Croatia" },
+  { name: "Edin Dzeko",         team: "Bosnia & Herzegovina" },
+  { name: "Manuel Neuer",       team: "Germany" },
+  { name: "Vozinha",            team: "Cape Verde" },
+  { name: "Fernando Muslera",   team: "Uruguay" },
+  { name: "Yuto Nagatomo",      team: "Japan" },
+  { name: "Hernan Galindez",    team: "Ecuador" },
+  { name: "Mahdy Soliman",      team: "Egypt" },
+  { name: "Lionel Messi",       team: "Argentina" },
+  { name: "Tim Ream",           team: "USA" },
+  { name: "Weverton",           team: "Brazil" },
+  { name: "Alberto Quintero",   team: "Panama" },
+  { name: "Johny Placide",      team: "Haiti" },
+  { name: "Nicolas Otamendi",   team: "Argentina" },
+  { name: "Gatito Fernandez",   team: "Paraguay" },
+  { name: "Stopira",            team: "Cape Verde" },
+  { name: "Michael Boxall",     team: "New Zealand" },
+];
+
 function tournieOptionsFor(cat) {
   if (!cat) return [];
   if (cat.kind === "team") return WC2026_TEAM_NAMES;
@@ -1321,6 +1346,9 @@ function tournieOptionsFor(cat) {
       : WC2026_ALL_PLAYERS;
     if (cat.id === "bestYoungPlayer") {
       players = WC2026_ALL_PLAYERS.filter(p => WC2026_U23_PLAYERS.has(p.name));
+    }
+    if (cat.id === "bestGoldenOldie") {
+      return WC2026_GOLDEN_OLDIES.map(p => `${p.name} (${p.team})`);
     }
     return players.map(p => `${p.name} (${p.team})`);
   }
