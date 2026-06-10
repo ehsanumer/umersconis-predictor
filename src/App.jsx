@@ -108,7 +108,7 @@ const GlobalStyles = () => (
     /* LEADERBOARD */
     .lb-row {
       background: #142846; border: 1px solid rgba(204,16,32,0.15); border-radius: 0; display: grid;
-      grid-template-columns: 48px 1fr 90px 70px 70px 70px 70px 90px 70px 70px 70px;
+      grid-template-columns: 48px 1fr 90px 70px 70px 70px 70px 90px 70px 70px 70px 70px;
       align-items: center; padding: 14px 16px; transition: all 0.2s; position: relative; overflow: hidden;
       background-image: repeating-linear-gradient(135deg, transparent 0, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px);
     }
@@ -353,6 +353,109 @@ const GlobalStyles = () => (
       .hero-stat-num { font-size: 26px; }
       .score-team { font-size: 10px; }
     }
+    /* TOMBOLA */
+    @keyframes drum-idle { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes drum-fast { from { transform: rotate(0deg); } to { transform: rotate(2160deg); } }
+    @keyframes ball-float-0 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(4px,-7px)} }
+    @keyframes ball-float-1 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(-6px,5px)} }
+    @keyframes ball-float-2 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(5px,6px)} }
+    @keyframes ball-float-3 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(-4px,-8px)} }
+    @keyframes ball-float-4 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(7px,3px)} }
+    @keyframes ball-float-5 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(-3px,7px)} }
+    @keyframes ball-float-6 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(6px,-4px)} }
+    @keyframes ball-float-7 { 0%,100%{transform:translate(0px,0px)} 50%{transform:translate(-5px,-5px)} }
+    @keyframes ball-pop {
+      0%   { transform: scale(0) translateY(40px); opacity: 0; }
+      55%  { transform: scale(1.18) translateY(-8px); opacity: 1; }
+      75%  { transform: scale(0.94) translateY(4px); }
+      90%  { transform: scale(1.05) translateY(-2px); }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    @keyframes confetti-fall {
+      0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(80px) rotate(720deg); opacity: 0; }
+    }
+    @keyframes stars-pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+    .tombola-page { padding: 24px 16px 40px; max-width: 820px; margin: 0 auto; }
+    .tombola-header { text-align:center; margin-bottom:28px; }
+    .tombola-title { font-family:'Anton',sans-serif; font-size:52px; letter-spacing:6px; color:#fff;
+      text-shadow: 0 0 30px rgba(204,16,32,0.7), 3px 3px 0 rgba(204,16,32,0.4); margin-bottom:4px; }
+    .tombola-subtitle { font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:3px; color:#B8CCE8; }
+    .tombola-stage { display:flex; flex-direction:column; align-items:center; gap:20px; margin-bottom:32px; }
+    .tombola-drum-wrap { position:relative; width:220px; height:220px; }
+    .tombola-drum { width:220px; height:220px; border-radius:50%; background:radial-gradient(circle at 40% 35%, #1e3f72, #0a1628);
+      border:6px solid; border-color:#CC1020 #fff #CC1020 #fff;
+      box-shadow:0 0 50px rgba(204,16,32,0.5), inset 0 0 30px rgba(0,0,0,0.6), 0 8px 32px rgba(0,0,0,0.7);
+      position:relative; overflow:hidden; }
+    .tombola-drum-inner { position:absolute; inset:0; border-radius:50%; animation:drum-idle 12s linear infinite; }
+    .tombola-drum-inner.spinning { animation:drum-fast 2.5s cubic-bezier(0.15,0,0.6,1) forwards; }
+    .tombola-cage-bar { position:absolute; width:100%; height:2px; background:rgba(255,255,255,0.18);
+      top:50%; left:0; transform-origin:center; border-radius:1px; }
+    .tombola-drum-shine { position:absolute; top:8%; left:15%; width:35%; height:30%; border-radius:50%;
+      background:radial-gradient(ellipse, rgba(255,255,255,0.18) 0%, transparent 70%); pointer-events:none; z-index:10; }
+    .tombola-drum-rim { position:absolute; inset:-3px; border-radius:50%;
+      border:3px solid rgba(255,255,255,0.08); pointer-events:none; z-index:11; }
+    .tombola-handle { position:absolute; right:-36px; top:50%; transform:translateY(-50%);
+      width:32px; height:80px; display:flex; flex-direction:column; align-items:center; gap:0; }
+    .tombola-handle-arm { width:8px; height:50px; background:linear-gradient(180deg,#CC1020,#8b0f19); border-radius:4px; }
+    .tombola-handle-knob { width:20px; height:20px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff,#CC1020);
+      box-shadow:0 2px 8px rgba(0,0,0,0.5); }
+    .tombola-chute { width:40px; height:28px; background:linear-gradient(180deg,rgba(10,22,40,0.9),rgba(30,63,114,0.5));
+      border:2px solid rgba(255,255,255,0.2); border-top:none; border-radius:0 0 20px 20px; margin-top:-2px; }
+    .tombola-draw-btn { font-family:'Anton',sans-serif; font-size:22px; letter-spacing:3px; padding:14px 48px;
+      background:linear-gradient(135deg,#CC1020,#8b0f19); color:#fff; border:none; border-radius:6px; cursor:pointer;
+      box-shadow:0 4px 20px rgba(204,16,32,0.6), inset 0 1px 0 rgba(255,255,255,0.15); transition:all 0.2s;
+      text-shadow:0 2px 4px rgba(0,0,0,0.4); }
+    .tombola-draw-btn:hover:not(:disabled) { transform:translateY(-2px); box-shadow:0 8px 28px rgba(204,16,32,0.7); }
+    .tombola-draw-btn:active:not(:disabled) { transform:translateY(1px); }
+    .tombola-draw-btn:disabled { opacity:0.45; cursor:not-allowed; background:linear-gradient(135deg,#555,#333); box-shadow:none; }
+    .tombola-slots { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:8px; }
+    .tombola-slot { width:130px; min-height:110px; border-radius:10px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; gap:6px; padding:12px 8px;
+      border:2px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04); text-align:center; }
+    .tombola-slot.filled { border-color:rgba(204,16,32,0.5); background:rgba(204,16,32,0.08); }
+    .tombola-slot.filled.first  { border-color:rgba(255,215,0,0.6); background:rgba(255,215,0,0.06); }
+    .tombola-slot.filled.second { border-color:rgba(192,192,192,0.6); background:rgba(192,192,192,0.06); }
+    .tombola-slot.filled.third  { border-color:rgba(205,127,50,0.6); background:rgba(205,127,50,0.06); }
+    .tombola-slot-flag { font-size:32px; line-height:1; }
+    .tombola-slot-name { font-family:'Oswald',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px; color:var(--cream); }
+    .tombola-slot-pts { font-family:'Barlow Condensed',sans-serif; font-size:11px; color:var(--silver); }
+    .tombola-slot-empty { font-size:28px; color:rgba(255,255,255,0.1); }
+    .tombola-reveal-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; min-height:120px; }
+    .tombola-reveal-ball { width:120px; height:120px; border-radius:50%;
+      background:radial-gradient(circle at 35% 30%, #2a5298, #0a1628);
+      border:4px solid; border-color:#CC1020 #fff #CC1020 #fff;
+      box-shadow:0 0 40px rgba(204,16,32,0.6), 0 8px 32px rgba(0,0,0,0.6);
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+      animation:ball-pop 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    .tombola-reveal-flag { font-size:40px; line-height:1; }
+    .tombola-reveal-name { font-family:'Oswald',sans-serif; font-size:13px; font-weight:700; letter-spacing:1px; color:#fff;
+      text-align:center; padding:0 8px; line-height:1.2; }
+    .tombola-reveal-congrats { font-family:'Barlow Condensed',sans-serif; font-size:14px; letter-spacing:2px;
+      color:rgba(255,255,255,0.6); font-style:italic; text-transform:uppercase; }
+    .tombola-confetti-wrap { position:relative; height:0; overflow:visible; pointer-events:none; }
+    .tombola-confetti { position:absolute; width:8px; height:8px; border-radius:2px; }
+    .tombola-all-draws { margin-top:8px; }
+    .tombola-player-row { padding:14px 16px; background:#142846; border:1px solid rgba(204,16,32,0.15);
+      border-radius:6px; margin-bottom:6px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+    .tombola-player-name { font-family:'Oswald',sans-serif; font-weight:700; font-size:15px; color:var(--cream);
+      width:110px; flex-shrink:0; }
+    .tombola-player-teams { display:flex; gap:8px; flex-wrap:wrap; }
+    .tombola-team-chip { display:flex; align-items:center; gap:5px; padding:4px 10px;
+      background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:20px;
+      font-family:'Barlow Condensed',sans-serif; font-size:13px; color:var(--cream); }
+    .tombola-team-chip.win1 { border-color:rgba(255,215,0,0.5); background:rgba(255,215,0,0.08); color:#FFD700; }
+    .tombola-team-chip.win2 { border-color:rgba(192,192,192,0.5); background:rgba(192,192,192,0.06); }
+    .tombola-team-chip.win3 { border-color:rgba(205,127,50,0.5); background:rgba(205,127,50,0.08); color:#CD7F32; }
+    .tombola-team-chip-flag { font-size:14px; }
+    .tombola-pending { font-family:'Barlow Condensed',sans-serif; font-size:12px; color:rgba(255,255,255,0.3);
+      font-style:italic; padding:2px 10px; }
+    @media (max-width:480px) {
+      .tombola-title { font-size:38px; }
+      .tombola-draw-btn { font-size:18px; padding:12px 32px; }
+      .tombola-slots { gap:8px; }
+      .tombola-slot { width:100px; min-height:90px; }
+    }
   `}</style>
 );
 
@@ -445,6 +548,11 @@ export function makeGameState(name, adminUsername) {
       personalityBrief: "",       // WhatsApp excerpts + player dynamics
       playerNotes: {},            // { playerName: "notes about them" }
       log: [],                    // [{ timestamp, matchDay, actions, reasoning }]
+    },
+    tombola: {
+      draws: {},        // { playerName: ["Brazil", "France", "Spain"] }
+      thirdPlace: null, // admin sets the 3rd-place team when known
+      locked: false,    // admin locks after all draws are done
     },
   };
 }
@@ -1319,7 +1427,7 @@ export function isPerfectScore(predScore, actualScore) {
 
 export function calcScores(game) {
   const scores = {};
-  game.players.forEach(p => { scores[p] = { base:0, streaks:0, tournies:0, umersconi:0, infinetinos:0, killer:0, miniGames:0, powerPlay:0, total:0, correctScores:0 }; });
+  game.players.forEach(p => { scores[p] = { base:0, streaks:0, tournies:0, umersconi:0, infinetinos:0, killer:0, miniGames:0, powerPlay:0, tombola:0, total:0, correctScores:0 }; });
 
   const sortedMatches = [...(game.matches||[])].sort((a,b) => new Date(a.kickoff||0) - new Date(b.kickoff||0));
 
@@ -1395,9 +1503,25 @@ export function calcScores(game) {
   const mg = calcMiniGameScores(game);
   game.players.forEach(p => { scores[p].miniGames = mg[p] || 0; });
 
+  // Tombola — 500/250/100 for 1st/2nd/3rd drawn teams
+  const tombolaWinner   = (game.tournamentAnswers?.winner   || "").toLowerCase().trim();
+  const tombolaRunnerUp = (game.tournamentAnswers?.runnerUp || "").toLowerCase().trim();
+  const tombolaThird    = (game.tombola?.thirdPlace         || "").toLowerCase().trim();
+  game.players.forEach(player => {
+    const draws = (game.tombola?.draws || {})[player] || [];
+    let pts = 0;
+    draws.forEach(team => {
+      const t = team.toLowerCase().trim();
+      if (tombolaWinner   && t === tombolaWinner)   pts += 500;
+      else if (tombolaRunnerUp && t === tombolaRunnerUp) pts += 250;
+      else if (tombolaThird    && t === tombolaThird)    pts += 100;
+    });
+    scores[player].tombola = pts;
+  });
+
   game.players.forEach(p => {
     const s = scores[p];
-    s.total = s.base + s.streaks + s.tournies + s.umersconi + s.infinetinos + s.killer + s.miniGames + s.powerPlay;
+    s.total = s.base + s.streaks + s.tournies + s.umersconi + s.infinetinos + s.killer + s.miniGames + s.powerPlay + s.tombola;
   });
   return scores;
 }
@@ -1658,8 +1782,19 @@ export function gameReducer(state, action) {
         relationships,
         relationshipsCompleted,
         autopilot,
+        tombola: state.tombola ? { ...state.tombola, draws: renKey(state.tombola.draws||{}) } : state.tombola,
       };
     }
+    case "TOMBOLA_DRAW": {
+      const existing = (state.tombola?.draws || {})[action.player] || [];
+      if (existing.length >= 3) return state;
+      return { ...state, tombola: { ...(state.tombola||{}),
+        draws: { ...(state.tombola?.draws||{}), [action.player]: [...existing, action.team] } } };
+    }
+    case "TOMBOLA_SET_THIRD_PLACE":
+      return { ...state, tombola: { ...(state.tombola||{}), thirdPlace: action.team } };
+    case "TOMBOLA_LOCK":
+      return { ...state, tombola: { ...(state.tombola||{}), locked: action.locked } };
     default: return state;
   }
 }
@@ -2071,6 +2206,7 @@ function Leaderboard({ game }) {
             <div style={{textAlign:"right",fontSize:10}}>Killer</div>
             <div style={{textAlign:"right",fontSize:10}}>Mini</div>
             <div style={{textAlign:"right",fontSize:10}}>⚡ Power</div>
+            <div style={{textAlign:"right",fontSize:10}}>🎰 Tombola</div>
           </div>
           {ranked.map((player,i)=>{
             const s=scores[player];
@@ -2093,6 +2229,7 @@ function Leaderboard({ game }) {
                 <div className={`lb-component ${s.killer>0?"positive":s.killer<0?"negative":""}`}>{s.killer>0?`+${s.killer}`:s.killer||"—"}</div>
                 <div className={`lb-component ${s.miniGames>0?"positive":s.miniGames<0?"negative":""}`}>{s.miniGames>0?`+${s.miniGames}`:s.miniGames||"—"}</div>
                 <div className={`lb-component ${s.powerPlay>0?"positive":s.powerPlay<0?"negative":""}`}>{s.powerPlay>0?`+${s.powerPlay}`:s.powerPlay||"—"}</div>
+                <div className={`lb-component ${s.tombola>0?"positive":""}`}>{s.tombola>0?`+${s.tombola}`:s.tombola||"—"}</div>
               </div>
             );
           })}
@@ -2430,6 +2567,313 @@ function MatchesView({ game, dispatch, session }) {
 }
 
 // ─── TOURNIES VIEW ────────────────────────────────────────────────────────────
+// ─── TOMBOLA ──────────────────────────────────────────────────────────────────
+const TOMBOLA_BALL_COLORS = ['#CC1020','#1B3358','#8b0f19','#0D3B7A','#CC1020','#1a4a8a','#7a0e18','#152d5c'];
+const TOMBOLA_CAGE_ANGLES = [0,30,60,90,120,150]; // cage bar angles
+const TOMBOLA_BALL_POS = [ // x%, y% positions for decorative balls inside drum
+  [50,22],[74,38],[72,65],[50,78],[28,65],[26,38],[38,52],[62,52],
+];
+const CONFETTI_COLORS = ['#CC1020','#FFFFFF','#1B3358','#FFD700','#CC1020','#FFFFFF'];
+
+function TombolaView({ game, dispatch, session }) {
+  const [spinning, setSpinning] = useState(false);
+  const [revealed, setRevealed] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [justDrawn, setJustDrawn] = useState(null); // brief highlight after draw
+
+  const tombola    = game.tombola || { draws: {}, thirdPlace: null, locked: false };
+  const allDrawn   = Object.values(tombola.draws).flat();
+  const available  = WC2026_TEAM_NAMES.filter(t => !allDrawn.includes(t));
+  const myDraws    = tombola.draws[session.username] || [];
+  const canDraw    = !tombola.locked && myDraws.length < 3 && available.length > 0;
+
+  const scores        = calcScores(game);
+  const winner        = (game.tournamentAnswers?.winner   || "").toLowerCase().trim();
+  const runnerUp      = (game.tournamentAnswers?.runnerUp || "").toLowerCase().trim();
+  const thirdPlaceTm  = (tombola.thirdPlace || "").toLowerCase().trim();
+
+  function chipClass(team) {
+    const t = team.toLowerCase().trim();
+    if (winner   && t === winner)   return "tombola-team-chip win1";
+    if (runnerUp && t === runnerUp) return "tombola-team-chip win2";
+    if (thirdPlaceTm && t === thirdPlaceTm) return "tombola-team-chip win3";
+    return "tombola-team-chip";
+  }
+  function slotClass(team, idx) {
+    const t = team.toLowerCase().trim();
+    if (winner   && t === winner)   return "tombola-slot filled first";
+    if (runnerUp && t === runnerUp) return "tombola-slot filled second";
+    if (thirdPlaceTm && t === thirdPlaceTm) return "tombola-slot filled third";
+    return "tombola-slot filled";
+  }
+  function slotPts(team) {
+    const t = team.toLowerCase().trim();
+    if (winner   && t === winner)   return "🥇 +500 pts";
+    if (runnerUp && t === runnerUp) return "🥈 +250 pts";
+    if (thirdPlaceTm && t === thirdPlaceTm) return "🥉 +100 pts";
+    return "Awaiting results…";
+  }
+
+  function handleDraw() {
+    if (!canDraw || spinning) return;
+    setSpinning(true);
+    setRevealed(null);
+    setShowConfetti(false);
+    setJustDrawn(null);
+
+    const pool  = [...available];
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+
+    setTimeout(() => {
+      dispatch({ type: "TOMBOLA_DRAW", player: session.username, team: picked });
+      setRevealed({ team: picked, flag: TEAM_FLAGS[picked] || "🏳️" });
+      setJustDrawn(picked);
+      setSpinning(false);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2000);
+    }, 2600);
+  }
+
+  const myScore = scores[session.username]?.tombola || 0;
+
+  return (
+    <div className="page">
+      <div className="tombola-page">
+        {/* Header */}
+        <div className="tombola-header">
+          <div className="tombola-title">🇺🇸 TOMBOLA 🇺🇸</div>
+          <div className="tombola-subtitle">3 DRAWS PER PLAYER · ONE NATION PER PLAYER · 500 / 250 / 100 PTS</div>
+        </div>
+
+        {/* Drum + draw stage */}
+        <div className="tombola-stage">
+          {/* Drum */}
+          <div className="tombola-drum-wrap">
+            <div className="tombola-drum">
+              <div className={`tombola-drum-inner${spinning?" spinning":""}`}>
+                {TOMBOLA_CAGE_ANGLES.map(ang => (
+                  <div key={ang} className="tombola-cage-bar" style={{transform:`translateY(-50%) rotate(${ang}deg)`}}/>
+                ))}
+                {TOMBOLA_BALL_POS.map(([x,y],i) => (
+                  <div key={i} style={{
+                    position:"absolute", left:`${x}%`, top:`${y}%`,
+                    transform:"translate(-50%,-50%)",
+                    width:22, height:22, borderRadius:"50%",
+                    background:`radial-gradient(circle at 35% 30%, rgba(255,255,255,0.4), ${TOMBOLA_BALL_COLORS[i]})`,
+                    boxShadow:`0 2px 6px rgba(0,0,0,0.5)`,
+                    animation:`ball-float-${i} ${2+i*0.3}s ease-in-out infinite alternate`,
+                    fontSize:11, display:"flex", alignItems:"center", justifyContent:"center",
+                    zIndex:2,
+                  }}>
+                    {available[i % available.length] ? (TEAM_FLAGS[available[i % available.length]] || "⚽") : ""}
+                  </div>
+                ))}
+              </div>
+              <div className="tombola-drum-shine"/>
+              <div className="tombola-drum-rim"/>
+            </div>
+            {/* Crank handle */}
+            <div className="tombola-handle">
+              <div className="tombola-handle-arm"/>
+              <div className="tombola-handle-knob"/>
+            </div>
+          </div>
+
+          {/* Chute */}
+          <div className="tombola-chute"/>
+
+          {/* Reveal area */}
+          <div className="tombola-reveal-wrap">
+            {spinning && (
+              <div style={{fontFamily:"Oswald,sans-serif",fontSize:18,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontStyle:"italic"}}>
+                Spinning…
+              </div>
+            )}
+            {revealed && !spinning && (
+              <>
+                <div className="tombola-confetti-wrap">
+                  {showConfetti && CONFETTI_COLORS.map((col,i)=>(
+                    <div key={i} className="tombola-confetti" style={{
+                      left:`${-30+i*16}px`, top:0, background:col, borderRadius:i%2===0?"50%":"2px",
+                      animation:`confetti-fall ${0.8+i*0.15}s ease-out ${i*0.08}s forwards`,
+                    }}/>
+                  ))}
+                </div>
+                <div className="tombola-reveal-ball">
+                  <div className="tombola-reveal-flag">{revealed.flag}</div>
+                  <div className="tombola-reveal-name">{revealed.team}</div>
+                </div>
+                <div className="tombola-reveal-congrats">You drew {revealed.team}!</div>
+              </>
+            )}
+          </div>
+
+          {/* Your draw slots */}
+          <div>
+            <div style={{fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:2,color:"var(--silver)",textAlign:"center",marginBottom:10}}>
+              YOUR DRAWS ({myDraws.length}/3)
+            </div>
+            <div className="tombola-slots">
+              {[0,1,2].map(i => {
+                const team = myDraws[i];
+                return team ? (
+                  <div key={i} className={slotClass(team,i)}>
+                    <div className="tombola-slot-flag">{TEAM_FLAGS[team]||"🏳️"}</div>
+                    <div className="tombola-slot-name">{team}</div>
+                    <div className="tombola-slot-pts">{slotPts(team)}</div>
+                  </div>
+                ) : (
+                  <div key={i} className="tombola-slot">
+                    <div className="tombola-slot-empty">{spinning && i === myDraws.length ? "🎰" : "?"}</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",fontFamily:"Barlow Condensed,sans-serif"}}>Draw #{i+1}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Draw button */}
+          {tombola.locked ? (
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,color:"rgba(255,255,255,0.4)",letterSpacing:1}}>
+              🔒 Tombola locked — draws are complete
+            </div>
+          ) : myDraws.length >= 3 ? (
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>
+              ✓ You've used all 3 draws
+            </div>
+          ) : available.length === 0 ? (
+            <div style={{fontFamily:"Barlow Condensed,sans-serif",fontSize:13,color:"rgba(255,255,255,0.4)",letterSpacing:1}}>
+              All 48 nations have been drawn!
+            </div>
+          ) : (
+            <button className="tombola-draw-btn" onClick={handleDraw} disabled={spinning}>
+              {spinning ? "DRAWING…" : `DRAW #${myDraws.length + 1}`}
+            </button>
+          )}
+
+          {myScore > 0 && (
+            <div style={{fontFamily:"Anton,sans-serif",fontSize:22,color:"#FFD700",letterSpacing:2,textShadow:"0 0 20px rgba(255,215,0,0.5)"}}>
+              +{myScore} TOMBOLA PTS
+            </div>
+          )}
+        </div>
+
+        {/* All players draws */}
+        <div className="tombola-all-draws">
+          <div className="section-header">
+            <div className="section-title">All Draws</div>
+            <div className="section-sub">{available.length} nations remaining</div>
+          </div>
+          {game.players.map(player => {
+            const draws = tombola.draws[player] || [];
+            const pScore = scores[player]?.tombola || 0;
+            return (
+              <div key={player} className="tombola-player-row">
+                <div className="tombola-player-name">{player}</div>
+                <div className="tombola-player-teams">
+                  {draws.length === 0 && <div className="tombola-pending">No draws yet</div>}
+                  {draws.map(team => (
+                    <div key={team} className={chipClass(team)}>
+                      <span className="tombola-team-chip-flag">{TEAM_FLAGS[team]||"🏳️"}</span>
+                      {team}
+                    </div>
+                  ))}
+                </div>
+                {pScore > 0 && (
+                  <div style={{marginLeft:"auto",fontFamily:"Anton,sans-serif",fontSize:16,color:"#FFD700"}}>+{pScore}pts</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TombolaAdminTab({ game, dispatch }) {
+  const tombola = game.tombola || {};
+  const winner   = game.tournamentAnswers?.winner || "";
+  const runnerUp = game.tournamentAnswers?.runnerUp || "";
+  const [tp, setTp] = useState(tombola.thirdPlace || "");
+
+  function saveThird() {
+    dispatch({ type: "TOMBOLA_SET_THIRD_PLACE", team: tp });
+  }
+
+  const allDrawn   = Object.values(tombola.draws || {}).flat();
+  const drawCounts = game.players.map(p => ({ player: p, count: (tombola.draws?.[p] || []).length }));
+
+  return (
+    <div style={{padding:"20px 0"}}>
+      <div style={{marginBottom:20,fontFamily:"Oswald,sans-serif",fontSize:13,color:"var(--silver)",letterSpacing:2}}>TOMBOLA ADMIN</div>
+
+      {/* Prize teams overview */}
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:24}}>
+        {[
+          { label:"🥇 1st Place (500 pts)", val: winner || "Not set yet", set: !!winner },
+          { label:"🥈 2nd Place (250 pts)", val: runnerUp || "Not set yet", set: !!runnerUp },
+          { label:"🥉 3rd Place (100 pts)", val: tombola.thirdPlace || "Not set yet", set: !!tombola.thirdPlace },
+        ].map(({label,val,set}) => (
+          <div key={label} style={{padding:"10px 16px",background:set?"rgba(204,16,32,0.1)":"rgba(255,255,255,0.04)",
+            border:`1px solid ${set?"rgba(204,16,32,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:6,minWidth:180}}>
+            <div style={{fontSize:11,color:"var(--silver)",fontFamily:"Oswald,sans-serif",letterSpacing:1,marginBottom:4}}>{label}</div>
+            <div style={{fontSize:16,fontFamily:"Oswald,sans-serif",fontWeight:700,color:set?"var(--cream)":"rgba(255,255,255,0.3)"}}>
+              {set ? (TEAM_FLAGS[val]||"") + " " + val : val}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 3rd place setter */}
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:12,color:"var(--silver)",marginBottom:8,fontFamily:"Oswald,sans-serif",letterSpacing:1}}>SET 3RD PLACE WINNER</div>
+        <div style={{display:"flex",gap:8}}>
+          <select className="admin-input" value={tp} onChange={e=>setTp(e.target.value)} style={{minWidth:200}}>
+            <option value="">— Select team —</option>
+            {WC2026_TEAM_NAMES.map(t=><option key={t} value={t}>{TEAM_FLAGS[t]||""} {t}</option>)}
+          </select>
+          <button className="admin-btn" onClick={saveThird}>Save</button>
+        </div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginTop:4,fontStyle:"italic"}}>
+          Winner and Runner-up are set in the Tournie Setup tab.
+        </div>
+      </div>
+
+      {/* Lock toggle */}
+      <div style={{marginBottom:24,display:"flex",alignItems:"center",gap:14}}>
+        <div>
+          <div style={{fontSize:12,color:"var(--silver)",marginBottom:4,fontFamily:"Oswald,sans-serif",letterSpacing:1}}>
+            {tombola.locked ? "🔒 TOMBOLA LOCKED" : "🔓 TOMBOLA OPEN"}
+          </div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",fontStyle:"italic"}}>
+            Lock once everyone has done their draws to prevent late entries.
+          </div>
+        </div>
+        <button className="admin-btn" onClick={()=>dispatch({type:"TOMBOLA_LOCK",locked:!tombola.locked})}>
+          {tombola.locked ? "Unlock" : "Lock"}
+        </button>
+      </div>
+
+      {/* Draw summary */}
+      <div style={{fontSize:12,color:"var(--silver)",marginBottom:10,fontFamily:"Oswald,sans-serif",letterSpacing:1}}>DRAW SUMMARY</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {drawCounts.map(({player,count}) => (
+          <div key={player} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+            background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4}}>
+            <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,minWidth:120,color:"var(--cream)"}}>{player}</span>
+            <span style={{fontSize:12,color:"var(--silver)"}}>{count}/3 draws used</span>
+            <span style={{marginLeft:8}}>{(tombola.draws?.[player]||[]).map(t=>`${TEAM_FLAGS[t]||""}${t}`).join("  ")}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:12,fontSize:12,color:"rgba(255,255,255,0.3)"}}>
+        {allDrawn.length} / {Math.min(game.players.length * 3, 48)} teams drawn · {48 - allDrawn.length} remaining
+      </div>
+    </div>
+  );
+}
+
 function TournieView({ game, dispatch, session }) {
   const scores = calcScores(game);
   const deadline = getTournieDeadline(game);
@@ -4084,6 +4528,7 @@ export function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGa
     {k:"players",l:"Players"},
     {k:"autopilot",l:"🤖 Autopilot"},
     {k:"vendettas",l:"⚔️ Vendettas"},
+    {k:"tombola",l:"🎰 Tombola"},
     {k:"api",l:"🔌 API"},
   ];
 
@@ -4108,6 +4553,7 @@ export function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGa
         {tab==="players"    && <PlayersTab game={game} gameId={gameId} dispatch={dispatch} session={session} />}
         {tab==="autopilot"  && <AutopilotPanel game={game} dispatch={dispatch} session={session} />}
         {tab==="vendettas"  && <VendettasAdminTab game={game} dispatch={dispatch} />}
+        {tab==="tombola"    && <TombolaAdminTab game={game} dispatch={dispatch} />}
         {tab==="api"        && <FixtureSync game={game} dispatch={dispatch} />}
       </div>
     </div>
@@ -6036,19 +6482,23 @@ function BracketView({ game, session }) {
 
 // ─── SHARE TO WHATSAPP ────────────────────────────────────────────────────────
 const TEAM_FLAGS = {
-  "Argentina":"🇦🇷","Australia":"🇦🇺","Belgium":"🇧🇪","Bosnia & Herzegovina":"🇧🇦",
-  "Brazil":"🇧🇷","Cameroon":"🇨🇲","Canada":"🇨🇦","Cape Verde":"🇨🇻",
-  "Chile":"🇨🇱","Colombia":"🇨🇴","Croatia":"🇭🇷","Curaçao":"🇨🇼",
+  // WC2026 teams (all 48)
+  "Algeria":"🇩🇿","Argentina":"🇦🇷","Australia":"🇦🇺","Austria":"🇦🇹",
+  "Belgium":"🇧🇪","Bosnia & Herzegovina":"🇧🇦","Brazil":"🇧🇷","Canada":"🇨🇦",
+  "Cape Verde":"🇨🇻","Colombia":"🇨🇴","Croatia":"🇭🇷","Curaçao":"🇨🇼",
   "Czechia":"🇨🇿","DR Congo":"🇨🇩","Ecuador":"🇪🇨","Egypt":"🇪🇬",
-  "England":"🏴󠁧󠁢󠁥󠁮󠁧󁿢","France":"🇫🇷","Germany":"🇩🇪","Ghana":"🇬🇭",
-  "Honduras":"🇭🇳","Hungary":"🇭🇺","Iran":"🇮🇷","Italy":"🇮🇹",
-  "Ivory Coast":"🇨🇮","Japan":"🇯🇵","Kenya":"🇰🇪","Mexico":"🇲🇽",
-  "Morocco":"🇲🇦","Netherlands":"🇳🇱","New Zealand":"🇳🇿","Nigeria":"🇳🇬",
-  "Panama":"🇵🇦","Paraguay":"🇵🇾","Peru":"🇵🇪","Poland":"🇵🇱",
-  "Portugal":"🇵🇹","Qatar":"🇶🇦","Saudi Arabia":"🇸🇦","Senegal":"🇸🇳",
-  "Serbia":"🇷🇸","South Africa":"🇿🇦","South Korea":"🇰🇷","Spain":"🇪🇸",
-  "Switzerland":"🇨🇭","Türkiye":"🇹🇷","USA":"🇺🇸","Ukraine":"🇺🇦",
-  "Uruguay":"🇺🇾","Venezuela":"🇻🇪","Wales":"🏴󠁧󠁢󠁷󠁬󠁳󁿢",
+  "England":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","France":"🇫🇷","Germany":"🇩🇪","Ghana":"🇬🇭",
+  "Haiti":"🇭🇹","Iran":"🇮🇷","Iraq":"🇮🇶","Ivory Coast":"🇨🇮",
+  "Japan":"🇯🇵","Jordan":"🇯🇴","Mexico":"🇲🇽","Morocco":"🇲🇦",
+  "Netherlands":"🇳🇱","New Zealand":"🇳🇿","Norway":"🇳🇴","Panama":"🇵🇦",
+  "Paraguay":"🇵🇾","Portugal":"🇵🇹","Qatar":"🇶🇦","Saudi Arabia":"🇸🇦",
+  "Scotland":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Senegal":"🇸🇳","South Africa":"🇿🇦","South Korea":"🇰🇷",
+  "Spain":"🇪🇸","Sweden":"🇸🇪","Switzerland":"🇨🇭","Tunisia":"🇹🇳",
+  "Türkiye":"🇹🇷","Uruguay":"🇺🇾","USA":"🇺🇸","Uzbekistan":"🇺🇿",
+  // legacy / other nations (kept for backward-compat with Share feature)
+  "Cameroon":"🇨🇲","Chile":"🇨🇱","Honduras":"🇭🇳","Hungary":"🇭🇺",
+  "Italy":"🇮🇹","Kenya":"🇰🇪","Nigeria":"🇳🇬","Peru":"🇵🇪","Poland":"🇵🇱",
+  "Serbia":"🇷🇸","Ukraine":"🇺🇦","Venezuela":"🇻🇪","Wales":"🏴󠁧󠁢󠁷󠁬󠁳󠁿",
 };
 function teamFlag(name) { return TEAM_FLAGS[name] || "⚽"; }
 
@@ -6525,6 +6975,7 @@ export default function App() {
     {id:"h2h",l:"H2H"},
     {id:"awards",l:"🏆 Awards"},
     {id:"bracket",l:"🔲 Bracket"},
+    {id:"tombola",l:"🎰 Tombola"},
     {id:"tournies",l:"Tournies"},
     {id:"chaos",l:"Chaos Ledger"},
     {id:"killer",l:"⚔ Killer"},
@@ -6587,6 +7038,7 @@ export default function App() {
       {view==="h2h"         && <HeadToHeadView game={game} />}
       {view==="awards"      && <AwardsView game={game} />}
       {view==="bracket"     && <BracketView game={game} session={session} />}
+      {view==="tombola"     && <TombolaView game={game} dispatch={dispatch} session={session} />}
       {view==="tournies"    && <TournieView game={game} dispatch={dispatch} session={session} />}
       {view==="chaos"       && <ChaosView game={game} />}
       {view==="killer"      && <KillerView game={game} dispatch={dispatch} session={session} />}
