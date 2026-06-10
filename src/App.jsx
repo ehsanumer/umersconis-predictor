@@ -42,7 +42,8 @@ const GlobalStyles = () => (
     .logo { font-family: 'Anton', sans-serif; font-size: 26px; letter-spacing: 3px; color: var(--cream); line-height: 1; white-space: nowrap; }
     .logo span { color: var(--red); }
     .game-badge { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 2px; color: var(--silver); border: 1px solid rgba(204,16,32,0.3); padding: 3px 10px; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-    .nav-wrap { flex: 1; min-width: 0; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); }
+    .nav-outer { flex: 1; min-width: 0; display: flex; align-items: stretch; position: relative; }
+    .nav-wrap { flex: 1; min-width: 0; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 100%); mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 100%); }
     .nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; padding: 0 16px; }
     .nav::-webkit-scrollbar { display: none; }
     .nav-btn { font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 1.4px; font-size: 12px; padding: 8px 9px; border: none; background: transparent; color: var(--silver); cursor: pointer; transition: all 0.2s; border-bottom: 3px solid transparent; white-space: nowrap; flex-shrink: 0; }
@@ -50,6 +51,18 @@ const GlobalStyles = () => (
     .nav-btn.active { color: var(--cream); border-bottom-color: var(--red); }
     .nav-btn.admin { color: var(--red); }
     .nav-btn.admin.active { color: var(--red); border-bottom-color: var(--red); }
+    .hamburger-btn { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 15px; padding: 8px 12px; border: none; background: transparent; color: var(--silver); cursor: pointer; flex-shrink: 0; border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap; align-self: stretch; display: flex; align-items: center; }
+    .hamburger-btn:hover, .hamburger-btn.open { color: var(--cream); border-bottom-color: var(--red); }
+    .nav-dropdown { position: absolute; top: calc(100% + 3px); right: 0; background: #0b1626; border: 1px solid rgba(204,16,32,0.4); border-radius: 6px; padding: 6px 0; min-width: 190px; box-shadow: 0 12px 40px rgba(0,0,0,0.65); z-index: 500; }
+    .nav-dd-group { padding: 2px 0; }
+    .nav-dd-group + .nav-dd-group { border-top: 1px solid rgba(255,255,255,0.07); margin-top: 2px; padding-top: 4px; }
+    .nav-dd-label { font-family: 'Oswald', sans-serif; font-size: 9px; letter-spacing: 2.5px; color: rgba(255,255,255,0.3); padding: 4px 14px 2px; }
+    .nav-dd-btn { display: block; width: 100%; text-align: left; font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 1.3px; font-size: 12px; padding: 9px 14px; border: none; background: transparent; color: var(--silver); cursor: pointer; transition: background 0.15s, color 0.15s; }
+    .nav-dd-btn:hover { background: rgba(204,16,32,0.15); color: var(--cream); }
+    .nav-dd-btn.active { color: var(--gold); }
+    .nav-dd-btn.admin { color: var(--gold); }
+    .nav-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--red); margin-left: 5px; vertical-align: middle; position: relative; top: -1px; animation: pulse-dot 1.5s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.75)} }
     .user-pill { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--silver); white-space: nowrap; }
     .user-pill strong { color: var(--cream); font-family: 'Oswald', sans-serif; font-weight: 700; letter-spacing: 1px; }
     .admin-badge { font-family: 'Oswald', sans-serif; font-size: 10px; letter-spacing: 1px; background: var(--red); color: white; padding: 2px 8px; border-radius: 2px; box-shadow: 0 0 10px rgba(204,16,32,0.5); }
@@ -309,7 +322,9 @@ const GlobalStyles = () => (
       .header-inner { padding: 0 8px; gap: 4px; height: auto; min-height: 56px; flex-wrap: wrap; padding: 6px 8px; }
       .logo { font-size: 18px; letter-spacing: 1px; flex-shrink: 0; }
       .game-badge { display: none; }
-      .nav-wrap { order: 3; width: 100%; flex: none; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%); }
+      .nav-outer { order: 3; width: 100%; flex: none; }
+      .nav-wrap { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 100%); mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 100%); }
+      .hamburger-btn { padding: 5px 10px; font-size: 13px; }
       .nav { border-top: 1px solid rgba(204,16,32,0.15); padding: 4px 10px 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
       .nav-btn { font-size: 11px; padding: 5px 7px; letter-spacing: 1px; }
       .user-pill { flex-shrink: 0; }
@@ -6892,6 +6907,7 @@ export default function App() {
   const [activeGameMeta, setActiveGameMeta] = useState(null);
   const [game, setGame] = useState(null);
   const [view, setView] = useState("leaderboard");
+  const [menuOpen, setMenuOpen] = useState(false);
   const realtimeChannel = useRef(null);
   const isSaving = useRef(false);  // prevent realtime from overwriting local saves
 
@@ -6995,22 +7011,32 @@ export default function App() {
 
   const isAdmin = activeGameMeta?.adminId === session?.username;
 
-  const nav = [
-    {id:"leaderboard",l:"Standings"},
-    {id:"mypicks",l:"My Picks"},
-    {id:"matches",l:"Matches"},
-    {id:"recap",l:"Recap"},
-    {id:"h2h",l:"H2H"},
-    {id:"awards",l:"🏆 Awards"},
-    {id:"bracket",l:"🔲 Bracket"},
-    {id:"tombola",l:"🎰 Tombola"},
-    {id:"tournies",l:"Tournies"},
-    {id:"chaos",l:"Chaos Ledger"},
-    {id:"killer",l:"⚔ Killer"},
-    {id:"minigames",l:"🎲 Mini Games"},
-    {id:"share",l:"📱 Share"},
-    ...(isAdmin?[{id:"admin",l:"⚖️ Umersconi's Office",cls:"admin"}]:[]),
+  // Primary nav — always visible
+  const primaryNav = [
+    {id:"leaderboard", l:"Standings"},
+    {id:"matches",     l:"Matches"},
+    {id:"tournies",    l:"Tournies"},
+    {id:"chaos",       l:"Chaos Ledger"},
+    // Tombola stays primary until the admin locks it; badge pulses while the player has draws left
+    ...(!game?.tombola?.locked ? [{id:"tombola", l:"🎰 Tombola"}] : []),
   ];
+
+  // Hamburger menu groups
+  const menuGroups = [
+    { label: "My Game",    items: [{id:"mypicks",l:"My Picks"},{id:"h2h",l:"H2H"}] },
+    { label: "Tournament", items: [{id:"bracket",l:"🔲 Bracket"},{id:"recap",l:"Recap"},{id:"awards",l:"🏆 Awards"}] },
+    { label: "Side Games", items: [{id:"killer",l:"⚔ Killer"},{id:"minigames",l:"🎲 Mini Games"}] },
+    { label: null,         items: [
+        {id:"share",l:"📱 Share"},
+        ...(game?.tombola?.locked ? [{id:"tombola",l:"🎰 Tombola"}] : []),
+        ...(isAdmin ? [{id:"admin",l:"⚖️ Umersconi's Office",cls:"admin"}] : []),
+      ]
+    },
+  ];
+
+  // Red badge: show while player still has draws remaining and tombola isn't locked
+  const tombolaDrawsUsed = ((game?.tombola?.draws || {})[session?.username] || []).length;
+  const tombolaShowBadge = !game?.tombola?.locked && tombolaDrawsUsed < 3;
 
   // Show Vendettas & BFFs survey modal when admin has unlocked it and player hasn't completed it
   const showRelSurvey = game?.relationshipsUnlocked && session?.username &&
@@ -7043,12 +7069,32 @@ export default function App() {
             <div className="logo" style={{cursor:"pointer"}} onClick={handleLeaveGame}>Umer<span>sconi</span></div>
             <div className="game-badge" title={game?.name}>{game?.name}</div>
           </div>
-          <div className="nav-wrap">
-            <nav className="nav">
-              {nav.map(n=>(
-                <button key={n.id} className={`nav-btn ${n.cls||""} ${view===n.id?"active":""}`} onClick={()=>setView(n.id)}>{n.l}</button>
-              ))}
-            </nav>
+          <div className="nav-outer">
+            <div className="nav-wrap">
+              <nav className="nav">
+                {primaryNav.map(n=>(
+                  <button key={n.id} className={`nav-btn ${view===n.id?"active":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);}}>
+                    {n.l}{n.id==="tombola"&&tombolaShowBadge&&<span className="nav-dot"/>}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            <button className={`hamburger-btn${menuOpen?" open":""}`} onClick={()=>setMenuOpen(o=>!o)} title="More">☰</button>
+            {menuOpen&&<>
+              <div style={{position:"fixed",inset:0,zIndex:499}} onClick={()=>setMenuOpen(false)}/>
+              <div className="nav-dropdown">
+                {menuGroups.map((g,gi)=>g.items.length>0&&(
+                  <div key={gi} className="nav-dd-group">
+                    {g.label&&<div className="nav-dd-label">{g.label}</div>}
+                    {g.items.map(n=>(
+                      <button key={n.id} className={`nav-dd-btn ${n.cls||""} ${view===n.id?"active":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);}}>
+                        {n.l}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </>}
           </div>
           <div className="user-pill">
             <strong>{session?.username}</strong>
