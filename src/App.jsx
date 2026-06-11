@@ -2481,10 +2481,17 @@ function MatchesView({ game, dispatch, session }) {
                     </div>
 
                     {/* My prediction */}
-                    {!hasResult&&(
-                      <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:deadlinePassed?"rgba(204,16,32,0.08)":"rgba(255,255,255,0.03)"}}>
-                        <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",fontWeight:700,letterSpacing:2,color:deadlinePassed?"var(--red)":"var(--silver)",marginBottom:8}}>
-                          {deadlinePassed?"⚠ LATE SUBMISSION":"YOUR PREDICTION"}
+                    {!hasResult&&(()=>{
+                      // isActuallyLate: true only if this specific prediction was submitted
+                      // after the deadline (myPred.late), OR if there is no prediction yet
+                      // and the deadline has already passed (about to submit late).
+                      // deadlinePassed alone is NOT enough — on-time submissions should never
+                      // show a "Late Submission" warning just because the clock has moved on.
+                      const isActuallyLate = myPred?.late || (!myPred && deadlinePassed);
+                      return (
+                      <div style={{padding:"12px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:isActuallyLate?"rgba(204,16,32,0.08)":"rgba(255,255,255,0.03)"}}>
+                        <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",fontWeight:700,letterSpacing:2,color:isActuallyLate?"var(--red)":"var(--silver)",marginBottom:8}}>
+                          {isActuallyLate?"⚠ LATE SUBMISSION":"YOUR PREDICTION"}
                         </div>
                         {myPred&&!submitting[match.id]?(
                           <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -2591,7 +2598,8 @@ function MatchesView({ game, dispatch, session }) {
                           </div>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
                     {hasResult&&myPred&&(
                       <div style={{padding:"8px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",background:"rgba(255,255,255,0.03)",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
                         <span style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)"}}>YOUR PREDICTION</span>
