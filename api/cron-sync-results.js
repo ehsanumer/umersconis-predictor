@@ -105,10 +105,23 @@ export default async function handler(req) {
       headers: { 'x-apisports-key': apiKey },
     })
     const apiData = await apiRes.json()
+    const apiError = apiData.errors && Object.keys(apiData.errors).length ? apiData.errors : null
+    const totalInResponse = (apiData.response || []).length
     const fixtureResults = (apiData.response || []).map(mapFixtureResult).filter(Boolean)
 
     if (!fixtureResults.length) {
-      return new Response(JSON.stringify({ ...summary, message: 'No finished fixtures yet' }), {
+      // Also fetch all fixtures (any status) to distinguish "no data at all" from "none finished yet"
+      const allRes = await fetch('https://v3.football.api-sports.io/fixtures?league=1&season=2026', {
+        headers: { 'x-apisports-key': apiKey },
+      })
+      const allData = await allRes.json()
+      const allCount = (allData.response || []).length
+      const allError = allData.errors && Object.keys(allData.errors).length ? allData.errors : null
+      return new Response(JSON.stringify({
+        ...summary,
+        message: 'No finished fixtures yet',
+        apiDebug: { finishedInResponse: totalInResponse, apiError, totalFixturesForLeague: allCount, allApiError: allError },
+      }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       })
     }
