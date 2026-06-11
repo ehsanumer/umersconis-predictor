@@ -570,7 +570,12 @@ export function makeGameState(name, adminUsername) {
       thirdPlace: null, // admin sets the 3rd-place team when known
       locked: false,    // admin locks after all draws are done
     },
+    teamNames: {},      // { username: displayName } — display aliases; username stays stable as the key everywhere
   };
+}
+
+function displayName(username, game) {
+  return game?.teamNames?.[username] || username;
 }
 
 // Auth + storage helpers are in src/lib/supabase.js
@@ -1828,6 +1833,13 @@ export function gameReducer(state, action) {
         tombola: state.tombola ? { ...state.tombola, draws: renKey(state.tombola.draws||{}) } : state.tombola,
       };
     }
+    case "SET_TEAM_NAME": {
+      const { username, teamName } = action;
+      const tn = { ...(state.teamNames||{}) };
+      if (teamName?.trim()) tn[username] = teamName.trim();
+      else delete tn[username];
+      return { ...state, teamNames: tn };
+    }
     case "TOMBOLA_DRAW": {
       const existing = (state.tombola?.draws || {})[action.player] || [];
       if (existing.length >= 3) return state;
@@ -2271,11 +2283,12 @@ function Leaderboard({ game, onShare }) {
             return (
               <div key={player} className={`lb-row ${rc(i)}`}>
                 <div className={`lb-rank ${i===0?"gold":i===1?"silver":i===2?"bronze":""}`}>{medals[i]||i+1}</div>
-                <div>
-                  <div className="lb-name">{player}{nu>0&&<span className="lb-badge badge-umer">U×{nu}</span>}{nf>0&&<span className="lb-badge badge-fine">F×{nf}</span>}</div>
+                <div>{(()=>{const dn=displayName(player,game);return(<>
+                  <div className="lb-name">{dn}{nu>0&&<span className="lb-badge badge-umer">U×{nu}</span>}{nf>0&&<span className="lb-badge badge-fine">F×{nf}</span>}</div>
+                  {dn!==player&&<div className="lb-name-sub" style={{letterSpacing:0.3,opacity:0.65,marginBottom:1}}>{player}</div>}
                   <div className="lb-name-sub">{s.correctScores} perfect score{s.correctScores!==1?"s":""}</div>
                   <FormStrip dots={getPlayerForm(game,player)}/>
-                </div>
+                </>);})()}</div>
                 <div className="lb-score">{s.total.toLocaleString()}</div>
                 <div className="lb-component">{s.base.toLocaleString()}</div>
                 <div className={`lb-component ${s.streaks>0?"positive":""}`}>{s.streaks>0?`+${s.streaks}`:s.streaks}</div>
@@ -5010,6 +5023,8 @@ function PlayersTab({ game, gameId, dispatch, session }) {
   const [emails, setEmails] = useState({});
   const [renaming, setRenaming] = useState(null); // playerName being renamed
   const [newName, setNewName] = useState("");
+  const [settingTeamName, setSettingTeamName] = useState(null);
+  const [teamNameInput, setTeamNameInput] = useState("");
   const [busy, setBusy] = useState({});
   const [msg, setMsg] = useState({});
 
@@ -5044,6 +5059,12 @@ function PlayersTab({ game, gameId, dispatch, session }) {
       flash(player, `Reset email sent to ${email} ✓`);
     } catch(e) { flash(player, "Error: "+e.message, true); }
     setBusy(b=>({...b,[player]:false}));
+  }
+
+  function handleSetTeamName(player) {
+    dispatch({ type: "SET_TEAM_NAME", username: player, teamName: teamNameInput });
+    flash(player, teamNameInput.trim() ? `Team name set to "${teamNameInput.trim()}" ✓` : "Team name cleared ✓");
+    setSettingTeamName(null); setTeamNameInput("");
   }
 
   async function handleRename(player) {
@@ -5097,6 +5118,28 @@ function PlayersTab({ game, gameId, dispatch, session }) {
                     <button className="btn btn-sm" style={{background:"rgba(204,16,32,0.15)",color:"#ff7088",border:"1px solid rgba(204,16,32,0.3)"}} disabled={busy[p]} onClick={()=>handleDelete(p)}>✕ Remove</button>
                   )}
                 </div>
+              )}
+            </div>
+            <div style={{marginTop:6,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontSize:10,fontFamily:"Oswald,sans-serif",letterSpacing:1.5,color:"var(--silver)",flexShrink:0}}>TEAM NAME</span>
+              {settingTeamName===p ? (
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <input
+                    className="admin-input" style={{padding:"4px 8px",fontSize:13,width:180}}
+                    value={teamNameInput} onChange={e=>setTeamNameInput(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter")handleSetTeamName(p);if(e.key==="Escape"){setSettingTeamName(null);setTeamNameInput("");}}}
+                    autoFocus placeholder="Display alias (blank to clear)"
+                  />
+                  <button className="btn btn-red btn-sm" onClick={()=>handleSetTeamName(p)}>Save</button>
+                  <button className="btn btn-pitch btn-sm" onClick={()=>{setSettingTeamName(null);setTeamNameInput("");}}>✕</button>
+                </div>
+              ) : (
+                <span
+                  style={{fontSize:12,color:game.teamNames?.[p]?"var(--cream)":"rgba(255,255,255,0.25)",cursor:"pointer",borderBottom:"1px dashed rgba(255,255,255,0.2)",paddingBottom:1}}
+                  onClick={()=>{setSettingTeamName(p);setTeamNameInput(game.teamNames?.[p]||"");}}
+                >
+                  {game.teamNames?.[p] || "— click to set —"}
+                </span>
               )}
             </div>
             {msg[p]&&<div style={{marginTop:4,fontSize:12,color:msg[p].err?"#ff7088":"#4ade80"}}>{msg[p].text}</div>}
