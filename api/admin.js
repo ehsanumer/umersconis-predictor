@@ -40,6 +40,31 @@ export default async function handler(req) {
 
   const { action, gameId } = body
 
+  if (action === 'renamePlayer') {
+    const { oldName, newName } = body
+    if (!oldName || !newName) {
+      return new Response(JSON.stringify({ error: 'oldName and newName required' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+    try {
+      // Update profiles table (service key bypasses RLS — anon key is blocked for cross-user updates)
+      await supabase.from('profiles').update({ username: newName }).eq('username', oldName)
+      // Sync auth user_metadata so it never drifts out of step with profiles
+      const { data: profile } = await supabase.from('profiles').select('id').eq('username', newName).maybeSingle()
+      if (profile?.id) {
+        await supabase.auth.admin.updateUserById(profile.id, { user_metadata: { username: newName } })
+      }
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+  }
+
   if (action === 'deleteGame') {
     if (!gameId) {
       return new Response(JSON.stringify({ error: 'gameId required' }), {

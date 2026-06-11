@@ -1867,7 +1867,9 @@ function LoginScreen({ onLogin, pendingJoinCode }) {
     setLoading(true); setError("");
     try {
       const data = await signIn(email.trim(), password);
-      const username = data.user?.user_metadata?.username || email.split("@")[0];
+      // Always read username from profiles (source of truth), not auth metadata.
+      // Auth metadata holds the original registration name and is not updated on rename.
+      const username = await getUsernameForUser(data.user.id, email.trim());
       onLogin({ username, email: email.trim(), userId: data.user.id });
     } catch(e) {
       setError(e.message || "Login failed. Check your email and password.");

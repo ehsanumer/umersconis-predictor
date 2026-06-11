@@ -39,16 +39,17 @@ export async function getSession() {
 }
 
 export async function getUsernameForUser(userId, email) {
-  // Try profiles table first (most reliable)
+  // Profiles table is the source of truth — always prefer it over auth metadata.
+  // Use maybeSingle() so a missing row returns null cleanly instead of throwing.
   try {
     const { data } = await supabase
       .from('profiles')
       .select('username')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
     if (data?.username) return data.username
   } catch {}
-  // Fallback to email prefix
+  // Fallback to email prefix only when profiles has no row for this user
   return email ? email.split('@')[0] : 'Player'
 }
 
@@ -122,12 +123,16 @@ export async function renamePlayerInDB(gameId, oldName, newName) {
     .eq('game_id', gameId)
     .eq('username', oldName)
   if (gpErr) throw gpErr
-  // 2. profiles table — so email lookup and Reset Password keep working
-  //    Non-fatal: player may not have a profile row (e.g. manually added admin entries)
-  await supabase
-    .from('profiles')
-    .update({ username: newName })
-    .eq('username', oldName)
+  // 2. profiles table + auth metadata — routed through the admin edge function so
+  //    the service-role key is used (the anon key is blocked by RLS when updating
+  //    another user's profile row). Non-fatal: some players may have no profile row.
+  try {
+    await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'renamePlayer', oldName, newName }),
+    })
+  } catch { /* non-fatal */ }
 }
 
 export async function getPlayerEmails(usernames) {
