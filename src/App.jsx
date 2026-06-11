@@ -3013,7 +3013,7 @@ function TournieView({ game, dispatch, session }) {
   const [saved, setSaved] = useState(false);
   const hasSubmitted = Object.keys(myPreds).filter(k=>!k.startsWith("__")).length>0;
   const isDirty = JSON.stringify({...draft,__excuse:excuse})!==JSON.stringify(myPreds);
-  const isFirstLate = deadlinePassed&&!myPreds.__late;
+  const isFirstLate = deadlinePassed&&!hasSubmitted;
 
   function handleSave() {
     if (isFirstLate&&!excuse.trim()) return;
