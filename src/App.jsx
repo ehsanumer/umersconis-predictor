@@ -2340,6 +2340,7 @@ function MatchesView({ game, dispatch, session }) {
   const [saved, setSaved] = useState({});
   const [errors, setErrors] = useState({});
   const [filter, setFilter] = useState("upcoming"); // upcoming | today | completed | all
+  const [playerFilter, setPlayerFilter] = useState(null); // null = all players
   const [openDates, setOpenDates] = useState({});
 
   const myPlayer = session.username;
@@ -2449,9 +2450,18 @@ function MatchesView({ game, dispatch, session }) {
     <div className="page"><SectionTooltip id="matches" />
       <div className="section-header"><div className="section-title">Matches</div><div className="section-sub">{(game.matches||[]).length} fixtures · sorted by kickoff</div></div>
       <PowerPlayTracker game={game} player={myPlayer} />
-      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
         {filterBtns.map(b=>(
           <button key={b.k} className={`btn btn-sm ${filter===b.k?"btn-gold":"btn-pitch"}`} onClick={()=>setFilter(b.k)}>{b.l}</button>
+        ))}
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginRight:2}}>PLAYER</span>
+        <button className={`btn btn-sm ${!playerFilter?"btn-gold":"btn-pitch"}`} onClick={()=>setPlayerFilter(null)}>All</button>
+        {game.players.map(p=>(
+          <button key={p} className={`btn btn-sm ${playerFilter===p?"btn-gold":"btn-pitch"}`} onClick={()=>setPlayerFilter(pf=>pf===p?null:p)}>
+            {displayName(p,game)}
+          </button>
         ))}
       </div>
       {Object.keys(byDate).length===0 && <div className="empty">No matches in this view.</div>}
@@ -2634,7 +2644,7 @@ function MatchesView({ game, dispatch, session }) {
                     )}
                     <div className="match-body">
                       <div className="match-predictions">
-                        {game.players.map(player=>{
+                        {(playerFilter ? [playerFilter] : game.players).map(player=>{
                           const chip=getPredChip(match,player);
                           if (!hasResult&&!deadlinePassed&&player!==myPlayer) return (
                             <div key={player} className="prediction-chip pending"><span className="chip-name">{player}</span><span className="chip-pred">🔒</span></div>
