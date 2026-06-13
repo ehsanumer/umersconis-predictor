@@ -1891,6 +1891,15 @@ function LoginScreen({ onLogin, pendingJoinCode }) {
 
   async function handleRegister() {
     if (!username.trim()) { setError("Please choose a username."); return; }
+    // Guard against re-registration under old alias names
+    const RENAMED_USERS = {
+      'zizo': 'Your name is Zizzo, please sign in with the correct spelling.',
+      'halfnaan': 'Your name is Adnaan, please sign in with the correct spelling.',
+      'hip and knee': 'Your name is Nomaan, please sign in with the correct spelling.',
+      'midfield maestro': 'Your name is Kabir, please sign in with the correct spelling.',
+    };
+    const aliasErr = RENAMED_USERS[username.trim().toLowerCase()];
+    if (aliasErr) { setError(aliasErr); return; }
     if (!email.trim()) { setError("Please enter your email."); return; }
     if (!password) { setError("Please enter a password."); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
