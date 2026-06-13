@@ -2636,7 +2636,7 @@ function MatchesView({ game, dispatch, session }) {
                       <div className="match-predictions">
                         {game.players.map(player=>{
                           const chip=getPredChip(match,player);
-                          if (!hasResult&&player!==myPlayer) return (
+                          if (!hasResult&&!deadlinePassed&&player!==myPlayer) return (
                             <div key={player} className="prediction-chip pending"><span className="chip-name">{player}</span><span className="chip-pred">🔒</span></div>
                           );
                           if (!chip) return (
