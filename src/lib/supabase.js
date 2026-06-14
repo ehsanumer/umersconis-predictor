@@ -194,6 +194,19 @@ export async function saveGameState(gameId, state) {
   if (error) throw error
 }
 
+// Atomically updates one player's prediction for one match via a server-side
+// jsonb_set — no other part of the game state is read or written, so this
+// cannot race with concurrent saves from other players.
+export async function saveMatchPrediction(gameId, matchId, player, pred) {
+  const { error } = await supabase.rpc('set_match_prediction', {
+    p_game_id:  gameId,
+    p_match_id: matchId,
+    p_player:   player,
+    p_pred:     pred,
+  })
+  if (error) throw error
+}
+
 // ─── REALTIME ─────────────────────────────────────────────────────────────────
 
 export function subscribeToGame(gameId, callback) {

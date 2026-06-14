@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   supabase, signUp, signIn, signOut, getSession, onAuthChange,
   getGamesIndex, createGameInDB, findGameByJoinCode, getUserGames,
-  loadGameState, saveGameState, subscribeToGame, unsubscribeFromGame,
+  loadGameState, saveGameState, saveMatchPrediction, subscribeToGame, unsubscribeFromGame,
   getUsernameForUser, addPlayerToGame, removePlayerFromGame, renamePlayerInDB, getPlayerEmails,
   resetPasswordForEmail, updatePassword, getAllGames, deleteGame, getGamePlayerCounts,
 } from "./lib/supabase.js";
@@ -7044,7 +7044,8 @@ export default function App() {
   const [view, setView] = useState("leaderboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const realtimeChannel = useRef(null);
-  const isSaving = useRef(false);  // prevent realtime from overwriting local saves
+  const isSaving = useRef(false);       // prevent realtime from overwriting local saves
+  const atomicSaveInFlight = useRef(false); // true when last action was an atomic prediction save
 
   // Invite link — detect /join/:code in URL on mount
   const [pendingJoinCode, setPendingJoinCode] = useState(() => {
@@ -7095,6 +7096,8 @@ export default function App() {
   const saveTimer = useRef(null);
   useEffect(() => {
     if (!activeGameId || !game) return;
+    // Prediction actions are saved atomically via saveMatchPrediction — no full-state save needed.
+    if (atomicSaveInFlight.current) { atomicSaveInFlight.current = false; return; }
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       isSaving.current = true;
@@ -7107,8 +7110,31 @@ export default function App() {
   }, [game, activeGameId]);
 
   const dispatch = useCallback((action) => {
-    setGame(prev => gameReducer(prev, action));
-  }, []);
+    setGame(prev => {
+      const next = gameReducer(prev, action);
+
+      // For SET_PREDICTIONS: atomically patch just this player's prediction in the DB.
+      // This avoids the full-state overwrite race where concurrent saves from other
+      // players clobber each other's predictions.
+      if (action.type === 'SET_PREDICTIONS') {
+        const player = Object.keys(action.predictions)[0];
+        const pred   = action.predictions[player];
+        atomicSaveInFlight.current = true;
+        saveMatchPrediction(activeGameId, action.matchId, player, pred).catch(console.error);
+      }
+
+      // TOGGLE_POWERPLAY flips pred.powerPlay — also patch atomically.
+      if (action.type === 'TOGGLE_POWERPLAY') {
+        const pred = next.predictions?.[action.matchId]?.[action.player];
+        if (pred !== undefined) {
+          atomicSaveInFlight.current = true;
+          saveMatchPrediction(activeGameId, action.matchId, action.player, pred).catch(console.error);
+        }
+      }
+
+      return next;
+    });
+  }, [activeGameId]);
 
   function handleLogin(s) { setSession(s); setAppState("game-select"); }
 
