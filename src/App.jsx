@@ -4788,6 +4788,13 @@ function ResultsTab({ game, dispatch }) {
   const [pensWinner, setPensWinner] = useState(""); // "H" | "A"
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
+  // Edit existing result
+  const [editSel, setEditSel] = useState("");
+  const [editHome, setEditHome] = useState("");
+  const [editAway, setEditAway] = useState("");
+  const [editMethod, setEditMethod] = useState("");
+  const [editPensWinner, setEditPensWinner] = useState("");
+  const [editDone, setEditDone] = useState(false);
 
   async function quickSync() {
     setSyncing(true); setSyncMsg("");
@@ -4917,6 +4924,109 @@ function ResultsTab({ game, dispatch }) {
           </div>
         </div>
       )}
+
+      {/* ── Edit an existing result ── */}
+      <div style={{marginTop:32,paddingTop:24,borderTop:"1px solid rgba(204,16,32,0.2)"}}>
+        <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--red)",marginBottom:14}}>CORRECT AN EXISTING RESULT</div>
+        {(()=>{
+          const resolved = (game.matches||[]).filter(m=>m.result).sort((a,b)=>new Date(a.kickoff||0)-new Date(b.kickoff||0));
+          const em = resolved.find(m=>m.id===editSel);
+          const [ehT,eaT] = em?.teams?.includes(" v ") ? em.teams.split(" v ") : [em?.teams||"Home","Away"];
+          const isKOe = em?.stage==="knockout";
+
+          function prefill(m) {
+            setEditSel(m.id);
+            const s = m.score||"";
+            const mm = s.match(/\((AET|PENS)\)/i);
+            const meth = mm ? mm[1].toLowerCase() : "";
+            const clean = s.replace(/\s*\(.*\)/,"");
+            const [h,a] = clean.split("-");
+            setEditHome(h||""); setEditAway(a||"");
+            setEditMethod(meth);
+            setEditPensWinner(meth==="pens" ? (m.result==="H"?"H":"A") : "");
+            setEditDone(false);
+          }
+
+          function saveEdit() {
+            if (!editSel||editHome===""||editAway==="") return;
+            const hg=parseInt(editHome), ag=parseInt(editAway);
+            if (isNaN(hg)||isNaN(ag)) return;
+            let result, suffix="";
+            if (editMethod==="pens")      { suffix=" (PENS)"; result=editPensWinner||"H"; }
+            else if (editMethod==="aet")  { suffix=" (AET)";  result=hg>ag?"H":"A"; }
+            else                          { result=hg>ag?"H":ag>hg?"A":isKOe?null:"D"; }
+            if (!result) return;
+            dispatch({type:"ENTER_RESULT", matchId:editSel, result, score:`${hg}-${ag}${suffix}`});
+            setEditDone(true);
+            setTimeout(()=>setEditDone(false), 3000);
+          }
+
+          return (
+            <div>
+              <div className="admin-field" style={{marginBottom:14}}>
+                <label className="admin-label">Match to correct</label>
+                <select className="admin-input" value={editSel} onChange={e=>{
+                  const m=resolved.find(x=>x.id===e.target.value);
+                  if (m) prefill(m); else setEditSel("");
+                }}>
+                  <option value="">— Select a completed match —</option>
+                  {resolved.map(m=><option key={m.id} value={m.id}>{m.teams} · {m.result} {m.score}</option>)}
+                </select>
+              </div>
+              {em && (
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+                    <span style={{color:"var(--cream)",fontFamily:"Oswald,sans-serif",fontWeight:700,minWidth:80}}>{ehT}</span>
+                    <input type="number" min="0" max="30" className="score-num"
+                      style={{background:"#2a1010",color:"var(--cream)",border:"1px solid #5a2020"}}
+                      value={editHome} onChange={e=>setEditHome(e.target.value)} />
+                    <span style={{color:"var(--silver)",fontFamily:"Oswald,sans-serif",fontSize:22}}>—</span>
+                    <input type="number" min="0" max="30" className="score-num"
+                      style={{background:"#2a1010",color:"var(--cream)",border:"1px solid #5a2020"}}
+                      value={editAway} onChange={e=>setEditAway(e.target.value)} />
+                    <span style={{color:"var(--cream)",fontFamily:"Oswald,sans-serif",fontWeight:700,minWidth:80}}>{eaT}</span>
+                  </div>
+                  {isKOe && (
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>DID THIS GO BEYOND 90 MINS?</div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                        {[{id:"",l:"Normal Time"},{id:"aet",l:"After Extra Time"},{id:"pens",l:"Penalties"}].map(opt=>(
+                          <button key={opt.id}
+                            style={{fontFamily:"Oswald,sans-serif",letterSpacing:1,fontSize:13,padding:"8px 14px",border:`2px solid ${editMethod===opt.id?"#27ae60":"#5a2020"}`,borderRadius:4,background:editMethod===opt.id?"#e8f4e8":"#2a1010",color:editMethod===opt.id?"#1e8449":"var(--silver)",cursor:"pointer"}}
+                            onClick={()=>{setEditMethod(opt.id);setEditPensWinner("");}}>
+                            {opt.l}
+                          </button>
+                        ))}
+                      </div>
+                      {editMethod==="pens" && (
+                        <div style={{display:"flex",gap:8}}>
+                          {[{id:"H",l:ehT},{id:"A",l:eaT}].map(opt=>(
+                            <button key={opt.id}
+                              style={{fontFamily:"Oswald,sans-serif",letterSpacing:1,fontSize:13,padding:"8px 14px",border:`2px solid ${editPensWinner===opt.id?"#8e44ad":"#5a2020"}`,borderRadius:4,background:editPensWinner===opt.id?"#f0e8f8":"#2a1010",color:editPensWinner===opt.id?"#6c3483":"var(--silver)",cursor:"pointer"}}
+                              onClick={()=>setEditPensWinner(opt.id)}>
+                              {opt.l}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                    <button className="btn btn-red"
+                      disabled={!editHome||!editAway||(editMethod==="pens"&&!editPensWinner)}
+                      onClick={saveEdit}>
+                      {editDone ? "✓ Saved" : "Save Correction"}
+                    </button>
+                    {em && <span style={{fontSize:12,color:"var(--silver)",fontStyle:"italic"}}>
+                      Current: {em.result} {em.score}
+                    </span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
     </div>
   );
 }
