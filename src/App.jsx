@@ -505,15 +505,16 @@ const POWERPLAY_PENALTY = -20;
 const POWERPLAY_STAGES = [
   { id: "group", label: "Group Stage" },
   { id: "r32",   label: "Round of 32" },
+  { id: "r16",   label: "Round of 16" },
   { id: "qf",    label: "Quarter Final" },
   { id: "sf",    label: "Semi Final" },
   { id: "final", label: "Final" },
 ];
-// Which "bucket" a match belongs to for PowerPlay purposes — null if not eligible (e.g. R16, 3rd place)
+// Which "bucket" a match belongs to for PowerPlay purposes — null if not eligible (e.g. 3rd place)
 function getPowerPlayBucket(match) {
   if (!match) return null;
   if (match.stage === "group") return "group";
-  if (["r32","qf","sf","final"].includes(match.round)) return match.round;
+  if (["r32","r16","qf","sf","final"].includes(match.round)) return match.round;
   return null;
 }
 // Scan a player's predictions to find which PowerPlay slots they've used and on which match
