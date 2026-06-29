@@ -46,11 +46,27 @@ export default async function handler(req) {
 
   let initialData
   try {
-    // The value is a JSON string with unicode escapes — decode then parse
-    const decoded = initMatch[1]
-      .replace(/\\u([\dA-Fa-f]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, '\\')
+    // BBC stores the JSON as an HTML-string-escaped value.
+    // Decode escape sequences char-by-char to handle all cases correctly.
+    const raw = initMatch[1]
+    let decoded = ''
+    let i = 0
+    while (i < raw.length) {
+      if (raw[i] === '\\' && i + 1 < raw.length) {
+        const n = raw[i + 1]
+        if      (n === '"')  { decoded += '"';  i += 2 }
+        else if (n === '\\') { decoded += '\\'; i += 2 }
+        else if (n === 'n')  { decoded += '\n'; i += 2 }
+        else if (n === 'r')  { decoded += '\r'; i += 2 }
+        else if (n === 't')  { decoded += '\t'; i += 2 }
+        else if (n === 'u')  {
+          decoded += String.fromCharCode(parseInt(raw.slice(i + 2, i + 6), 16))
+          i += 6
+        } else { decoded += n; i += 2 }
+      } else {
+        decoded += raw[i++]
+      }
+    }
     initialData = JSON.parse(decoded)
   } catch (e) {
     return json({ error: `Failed to parse __INITIAL_DATA__: ${e.message}` }, 502)
