@@ -5397,6 +5397,9 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
   const [actuals, setActuals] = useState({});
   const [steals, setSteals] = useState({});
   const [houseSteals, setHouseSteals] = useState({});
+  const [bbcUrl, setBbcUrl] = useState("");
+  const [fetchingStats, setFetchingStats] = useState(false);
+  const [fetchMsg, setFetchMsg] = useState({ text:"", ok:true });
 
   const round = (game.killerRounds||[]).find(r=>r.id===selId);
   const roundStats = round?.categories||KILLER_STATS;
@@ -5413,6 +5416,42 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
   }
 
   function saveActuals() { if (!selId) return; dispatch({type:"SET_KILLER_ACTUALS",roundId:selId,actuals}); }
+
+  async function fetchBBCStats() {
+    if (!bbcUrl.trim() || !selId) return;
+    setFetchingStats(true); setFetchMsg({ text:"", ok:true });
+    try {
+      const res = await fetch(`/api/fetch-stats?url=${encodeURIComponent(bbcUrl.trim())}`);
+      const data = await res.json();
+      if (!data.ok || !data.stats?.stats) {
+        setFetchMsg({ text: data.error || "No stats found on that page.", ok:false });
+        return;
+      }
+      const bbcStats = data.stats.stats; // [{ label, home, away }]
+      const cats = round?.categories || KILLER_STATS;
+      const filled = {};
+      let matched = 0;
+      cats.forEach(cat => {
+        const labelLower = cat.label.toLowerCase().replace(/^total\s+/,"");
+        // Try to find a BBC stat whose label (stripped of "Total ") fuzzy-matches
+        const hit = bbcStats.find(s => {
+          const sLower = s.label.toLowerCase().replace(/^total\s+/,"");
+          return sLower === labelLower || sLower.includes(labelLower) || labelLower.includes(sLower);
+        });
+        if (hit && hit.home !== undefined && hit.away !== undefined) {
+          filled[cat.id] = String(Math.round((Number(hit.home) + Number(hit.away)) * 10) / 10);
+          matched++;
+        }
+      });
+      setActuals(prev => ({ ...prev, ...filled }));
+      const home = data.stats.home.name, away = data.stats.away.name;
+      setFetchMsg({ text:`✓ Fetched ${home} v ${away} — auto-filled ${matched}/${cats.length} stats. Check values then save.`, ok:true });
+    } catch(e) {
+      setFetchMsg({ text:"Fetch failed: " + e.message, ok:false });
+    } finally {
+      setFetchingStats(false);
+    }
+  }
 
   function resolveRound() {
     if (!round) return;
@@ -5471,12 +5510,48 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
         <div>
           <div className="admin-field" style={{marginBottom:14}}>
             <label className="admin-label">Round</label>
-            <select className="admin-input" value={selId} onChange={e=>{setSelId(e.target.value);setActuals((game.killerRounds||[]).find(r=>r.id===e.target.value)?.actuals||{});}}>
+            <select className="admin-input" value={selId} onChange={e=>{setSelId(e.target.value);setActuals((game.killerRounds||[]).find(r=>r.id===e.target.value)?.actuals||{});setFetchMsg({text:"",ok:true});}}>
               <option value="">— Select —</option>
               {(game.killerRounds||[]).filter(r=>!r.resolved).map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
             </select>
           </div>
-          {round&&<div><div className="admin-grid">{roundStats.map(s=><div key={s.id} className="admin-field"><label className="admin-label">{s.label}</label><input type="number" min="0" className="admin-input" value={actuals[s.id]??""} onChange={e=>setActuals(p=>({...p,[s.id]:e.target.value}))} /></div>)}</div><div className="flex-end"><button className="btn btn-gold" onClick={saveActuals}>Save Actuals</button></div></div>}
+          {round&&(
+            <div>
+              {/* ── BBC auto-fetch ── */}
+              <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(204,16,32,0.2)",borderRadius:4,padding:"14px 16px",marginBottom:16}}>
+                <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--red)",marginBottom:10}}>AUTO-FILL FROM BBC SPORT</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                  <input
+                    className="admin-input"
+                    style={{flex:1,minWidth:240}}
+                    placeholder="https://www.bbc.co.uk/sport/football/live/..."
+                    value={bbcUrl}
+                    onChange={e=>setBbcUrl(e.target.value)}
+                  />
+                  <button
+                    className="btn btn-sm btn-gold"
+                    onClick={fetchBBCStats}
+                    disabled={fetchingStats||!bbcUrl.trim()}
+                  >{fetchingStats?"Fetching…":"⚡ Fetch Stats"}</button>
+                </div>
+                {fetchMsg.text&&(
+                  <div style={{marginTop:8,fontSize:12,color:fetchMsg.ok?"#4ade80":"var(--red)",fontStyle:"italic"}}>
+                    {fetchMsg.text}
+                  </div>
+                )}
+              </div>
+              {/* ── Manual inputs ── */}
+              <div className="admin-grid">
+                {roundStats.map(s=>(
+                  <div key={s.id} className="admin-field">
+                    <label className="admin-label">{s.label}</label>
+                    <input type="number" min="0" className="admin-input" value={actuals[s.id]??""} onChange={e=>setActuals(p=>({...p,[s.id]:e.target.value}))} />
+                  </div>
+                ))}
+              </div>
+              <div className="flex-end"><button className="btn btn-gold" onClick={saveActuals}>Save Actuals</button></div>
+            </div>
+          )}
         </div>
       )}
       {tab==="resolve"&&(
