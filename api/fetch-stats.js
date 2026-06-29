@@ -1,6 +1,7 @@
 // Server-side proxy for fetching match stats from BBC Sport.
-// Called by the Killer Round admin UI with a BBC match page URL.
-// Returns parsed stats as JSON, or the raw HTML if parsing fails.
+// BBC embeds all match data in window.__INITIAL_DATA__ as a JSON string.
+// The 'match-stats?' key within it contains full team stats from their
+// sports data API. This edge function fetches, parses, and returns them.
 
 export const config = { runtime: 'edge' }
 
@@ -10,134 +11,105 @@ export default async function handler(req) {
   const { searchParams } = new URL(req.url)
   const url = searchParams.get('url')
 
-  if (!url) {
-    return json({ error: 'url parameter required' }, 400)
-  }
+  if (!url) return json({ error: 'url parameter required' }, 400)
 
   let parsed
   try { parsed = new URL(url) } catch {
     return json({ error: 'Invalid URL' }, 400)
   }
-
   if (!ALLOWED_DOMAINS.some(d => parsed.hostname.endsWith(d))) {
     return json({ error: 'Domain not allowed' }, 403)
   }
 
-  // Fetch the page server-side with browser-like headers.
-  // Vercel edge IPs are not blocked by BBC the way Claude's fetch IPs are.
   let html
   try {
-    const res = await fetch(url, {
+    const res = await fetch(url.split('#')[0], { // strip fragment — not sent to server
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept':
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-GB,en;q=0.9',
         'Cache-Control': 'no-cache',
         'Referer': 'https://www.bbc.co.uk/sport/football',
       },
     })
-    if (!res.ok) return json({ error: `BBC returned ${res.status}` }, 502)
+    if (!res.ok) return json({ error: `BBC returned HTTP ${res.status}` }, 502)
     html = await res.text()
   } catch (e) {
     return json({ error: `Fetch failed: ${e.message}` }, 502)
   }
 
-  const stats = parseBBCStats(html)
-  if (stats) return json({ source: 'bbc', ok: true, stats })
+  // ── Extract __INITIAL_DATA__ ─────────────────────────────────────────────
+  // BBC embeds all page data as: window.__INITIAL_DATA__="<escaped JSON string>";
+  const initMatch = html.match(/window\.__INITIAL_DATA__="([\s\S]+?)";\s*<\/script>/)
+  if (!initMatch) return json({ error: 'Could not find __INITIAL_DATA__ in page' }, 502)
 
-  // Parsing failed — return enough of the raw HTML for debugging
-  return json({
-    source: 'bbc',
-    ok: false,
-    htmlSnippet: html.slice(0, 4000),
-    message: 'Could not parse stats from page — see htmlSnippet for debugging',
-  })
-}
-
-// ─── BBC STAT PARSER ──────────────────────────────────────────────────────────
-// BBC Sport SSR pages embed their data in <script> tags as JSON.
-// We try several known patterns and fall back to scraping stat labels/values
-// from the rendered HTML if the JSON approach doesn't yield anything.
-
-function parseBBCStats(html) {
-  // Strategy 1: find a JSON blob containing "matchStats" or "teamStats"
-  const jsonBlockRe = /<script[^>]*>\s*(?:window\.__\w+\s*=\s*)?(\{[\s\S]{200,}\})\s*<\/script>/g
-  let m
-  while ((m = jsonBlockRe.exec(html)) !== null) {
-    try {
-      const obj = JSON.parse(m[1])
-      const found = deepFind(obj, ['matchStats', 'teamStats', 'statistics', 'stats'])
-      if (found) return normaliseStats(found)
-    } catch {}
+  let initialData
+  try {
+    // The value is a JSON string with unicode escapes — decode then parse
+    const decoded = initMatch[1]
+      .replace(/\\u([\dA-Fa-f]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+    initialData = JSON.parse(decoded)
+  } catch (e) {
+    return json({ error: `Failed to parse __INITIAL_DATA__: ${e.message}` }, 502)
   }
 
-  // Strategy 2: scrape the rendered HTML for BBC's stat bar markup.
-  // BBC renders stats as pairs of numbers flanking a label, e.g.:
-  //   <span class="...home-value...">12</span>
-  //   <span class="...stat-title...">Total Shots</span>
-  //   <span class="...away-value...">7</span>
-  const scraped = scrapeBBCStatBars(html)
-  if (scraped && Object.keys(scraped).length > 0) return scraped
+  // ── Find the match-stats key ─────────────────────────────────────────────
+  const dataKeys = Object.keys(initialData.data || {})
+  const statsKey = dataKeys.find(k => k.startsWith('match-stats?'))
+  if (!statsKey) return json({ error: 'No match-stats key found — wrong page type?' }, 404)
 
-  return null
+  const raw = initialData.data[statsKey]?.data
+  if (!raw?.homeTeam || !raw?.awayTeam) {
+    return json({ error: 'match-stats data missing homeTeam/awayTeam', raw }, 502)
+  }
+
+  // ── Shape into a clean response ──────────────────────────────────────────
+  const stats = buildStats(raw)
+  return json({ ok: true, source: 'bbc', matchUrn: raw.urn, status: raw.eventStatus, stats })
 }
 
-function deepFind(obj, keys, depth = 0) {
-  if (depth > 10 || typeof obj !== 'object' || obj === null) return null
-  for (const k of keys) {
-    if (k in obj) return obj[k]
+function buildStats(raw) {
+  const h = raw.homeTeam
+  const a = raw.awayTeam
+
+  return {
+    home: { name: h.name.fullName, code: h.name.code },
+    away: { name: a.name.fullName, code: a.name.code },
+    stats: [
+      stat('Possession (%)',      h.stats.possessionPercentage?.total,   a.stats.possessionPercentage?.total),
+      stat('Total Shots',         h.stats.shotsTotal?.total,              a.stats.shotsTotal?.total),
+      stat('Shots on Target',     h.stats.shotsOnTarget?.total,           a.stats.shotsOnTarget?.total),
+      stat('Shots Off Target',    h.stats.attack?.shotsOffTarget?.total,  a.stats.attack?.shotsOffTarget?.total),
+      stat('Shots Blocked',       h.stats.attack?.shotsBlocked?.total,    a.stats.attack?.shotsBlocked?.total),
+      stat('Goalkeeper Saves',    h.stats.shotsSaved?.total,              a.stats.shotsSaved?.total),
+      stat('Fouls',               h.stats.foulsCommitted?.total,          a.stats.foulsCommitted?.total),
+      stat('Yellow Cards',        h.stats.defence?.totalYellowCard?.total ?? 0, a.stats.defence?.totalYellowCard?.total ?? 0),
+      stat('Red Cards',           h.stats.defence?.totalRedCard?.total ?? 0,    a.stats.defence?.totalRedCard?.total ?? 0),
+      stat('Corners',             h.stats.cornersWon?.total,              a.stats.cornersWon?.total),
+      stat('Offsides',            h.stats.attack?.totalOffside?.total ?? 0, a.stats.attack?.totalOffside?.total ?? 0),
+      stat('Total Passes',        h.stats.distribution?.totalPass?.total, a.stats.distribution?.totalPass?.total),
+      stat('Accurate Passes',     h.stats.distribution?.accuratePass?.total, a.stats.distribution?.accuratePass?.total),
+      stat('Pass Accuracy (%)',   h.stats.distribution?.accuratePassPercentage?.total, a.stats.distribution?.accuratePassPercentage?.total),
+      stat('Total Tackles',       h.stats.defence?.totalTackle?.total,    a.stats.defence?.totalTackle?.total),
+      stat('Tackles Won',         h.stats.defence?.wonTackle?.total,      a.stats.defence?.wonTackle?.total),
+      stat('Clearances',          h.stats.defence?.totalClearance?.total, a.stats.defence?.totalClearance?.total),
+      stat('Touches in Box',      h.stats.touchesInBox?.total,            a.stats.touchesInBox?.total),
+      stat('Crosses',             h.stats.distribution?.totalCross?.total, a.stats.distribution?.totalCross?.total),
+      stat('Aerials Won',         h.stats.aerialsWon?.total,              a.stats.aerialsWon?.total),
+      stat('xG',                  h.stats.expected?.goals?.total,         a.stats.expected?.goals?.total),
+    ].filter(s => s.home !== undefined && s.away !== undefined),
   }
-  for (const v of Object.values(obj)) {
-    const found = deepFind(v, keys, depth + 1)
-    if (found) return found
-  }
-  return null
 }
 
-function normaliseStats(raw) {
-  // raw may be an array of { name, homeValue, awayValue } or similar shapes
-  if (Array.isArray(raw)) {
-    const out = {}
-    raw.forEach(item => {
-      const label = item.name || item.label || item.title || item.type
-      if (!label) return
-      out[label] = { home: item.homeValue ?? item.home ?? item.value1, away: item.awayValue ?? item.away ?? item.value2 }
-    })
-    return Object.keys(out).length ? out : null
-  }
-  if (typeof raw === 'object') return raw
-  return null
+function stat(label, home, away) {
+  return { label, home: home ?? undefined, away: away ?? undefined }
 }
 
-function scrapeBBCStatBars(html) {
-  // BBC's stat rows look like (class names vary but structure is consistent):
-  //   <div class="...stat-row...">
-  //     <span>12</span>   ← home value
-  //     <span>Total Shots</span>
-  //     <span>7</span>    ← away value
-  //   </div>
-  const statRowRe = /(\d+)\s*<\/(?:span|td)>\s*(?:<[^>]+>\s*)*([A-Za-z][A-Za-z\s/()]{2,40}?)\s*(?:<\/[^>]+>\s*)*(\d+)\s*<\/(?:span|td)>/g
-  const knownStats = [
-    'shots', 'shot on target', 'possession', 'foul', 'yellow', 'red',
-    'offside', 'corner', 'pass', 'tackle', 'save', 'cross', 'block',
-  ]
-  const out = {}
-  let m
-  while ((m = statRowRe.exec(html)) !== null) {
-    const label = m[2].trim()
-    const lower = label.toLowerCase()
-    if (knownStats.some(k => lower.includes(k))) {
-      out[label] = { home: Number(m[1]), away: Number(m[3]) }
-    }
-  }
-  return Object.keys(out).length ? out : null
-}
-
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
 function json(body, status = 200) {
-  return new Response(JSON.stringify(body), {
+  return new Response(JSON.stringify(body, null, 2), {
     status,
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   })
