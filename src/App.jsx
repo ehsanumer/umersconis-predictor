@@ -1750,6 +1750,7 @@ export function gameReducer(state, action) {
     case "ADD_KILLER_ROUND": return { ...state, killerRounds:[...(state.killerRounds||[]),action.round] };
     case "SET_KILLER_PREDICTION": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,predictions:{...r.predictions,[action.player]:action.preds}}:r) };
     case "SET_KILLER_ACTUALS": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,actuals:action.actuals}:r) };
+    case "SET_KILLER_MATCH_STATS": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,matchStats:{...(r.matchStats||{}),[action.matchId]:action.stats}}:r) };
     case "RESOLVE_KILLER": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,resolved:true,steals:action.steals,houseSteals:action.houseSteals,starBonus:action.starBonus,starPredAwards:action.starPredAwards,worstPredAwards:action.worstPredAwards}:r) };
     case "ADD_PLAYER": return { ...state, players:[...(state.players||[]), action.player] };
     case "REMOVE_PLAYER": {
@@ -5392,92 +5393,176 @@ function SuperAdminScreen({ session, onBack }) {
 
 function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
   const [tab, setTab] = useState(manualOnly?"resolve":"create");
-  const [newRound, setNewRound] = useState({label:"",deadline:"",categories:KILLER_STATS.map(s=>({...s}))});
-  const [selId, setSelId] = useState("");
-  const [actuals, setActuals] = useState({});
-  const [steals, setSteals] = useState({});
+
+  // ── Create Round state ──────────────────────────────────────────────────────
+  const [selMatchDay, setSelMatchDay]   = useState("");
+  const [newCats, setNewCats]           = useState(KILLER_STATS.map(s=>({...s})));
+  const [customLabel, setCustomLabel]   = useState("");
+  const [customDeadline, setCustomDeadline] = useState("");
+
+  // ── Enter Actuals state ─────────────────────────────────────────────────────
+  const [selId, setSelId]       = useState("");
+  const [matchUrls, setMatchUrls] = useState({}); // { matchId: url }
+  const [fetching, setFetching]   = useState({}); // { matchId: bool }
+  const [fetchMsgs, setFetchMsgs] = useState({}); // { matchId: { text, ok } }
+
+  // ── Resolve state ───────────────────────────────────────────────────────────
+  const [resolveId, setResolveId]     = useState("");
+  const [steals, setSteals]           = useState({});
   const [houseSteals, setHouseSteals] = useState({});
-  const [bbcUrl, setBbcUrl] = useState("");
-  const [fetchingStats, setFetchingStats] = useState(false);
-  const [fetchMsg, setFetchMsg] = useState({ text:"", ok:true });
 
-  const round = (game.killerRounds||[]).find(r=>r.id===selId);
+  // ── Derived data ────────────────────────────────────────────────────────────
+  const allMatchDays = autoGenerateMatchDays(game).map(g => {
+    const s = (game.matchDays||[]).find(d=>d.id===g.id);
+    return s ? {...g, label:s.label} : g;
+  });
+  // Only show match days that have at least one fixture without a result yet
+  const upcomingDays = allMatchDays.filter(md =>
+    (game.matches||[]).some(m => md.matchIds.includes(m.id) && !m.result)
+  );
+  const selDay        = allMatchDays.find(d=>d.id===selMatchDay);
+  const dayFixtures   = selDay
+    ? (game.matches||[]).filter(m=>selDay.matchIds.includes(m.id)).sort((a,b)=>new Date(a.kickoff||0)-new Date(b.kickoff||0))
+    : [];
+
+  const round      = (game.killerRounds||[]).find(r=>r.id===selId);
   const roundStats = round?.categories||KILLER_STATS;
+  const resolveRound_ = (game.killerRounds||[]).find(r=>r.id===resolveId);
+  const resolveStats  = resolveRound_?.categories||KILLER_STATS;
 
-  function addCat() { setNewRound(p=>({...p,categories:[...p.categories,{id:"cat_"+Date.now(),label:""}]})); }
-  function updateCat(i,label) { setNewRound(p=>{const c=[...p.categories];c[i]={...c[i],label};return {...p,categories:c};}); }
-  function removeCat(i) { setNewRound(p=>({...p,categories:p.categories.filter((_,idx)=>idx!==i)})); }
+  // Match IDs for the selected actuals round (from matchStats keys or round.matchIds)
+  const roundMatches = round
+    ? (game.matches||[]).filter(m=>(round.matchIds||[]).includes(m.id)).sort((a,b)=>new Date(a.kickoff||0)-new Date(b.kickoff||0))
+    : [];
+  // Grand totals computed from matchStats
+  const computedActuals = (() => {
+    if (!round) return {};
+    const ms = round.matchStats||{};
+    const out = {};
+    roundStats.forEach(cat => {
+      out[cat.id] = Object.values(ms).reduce((sum, m) => sum + (Number(m.stats?.[cat.id])||0), 0);
+    });
+    return out;
+  })();
+  const allFetched = roundMatches.length > 0 && roundMatches.every(m => round?.matchStats?.[m.id]?.fetched);
+
+  // ── Create round helpers ─────────────────────────────────────────────────────
+  function addCat()            { setNewCats(p=>[...p, {id:"cat_"+Date.now(),label:""}]); }
+  function updateCat(i,label)  { setNewCats(p=>{const c=[...p];c[i]={...c[i],label};return c;}); }
+  function removeCat(i)        { setNewCats(p=>p.filter((_,idx)=>idx!==i)); }
 
   function createRound() {
-    if (!newRound.label) return;
-    const cats = newRound.categories.filter(c=>c.label.trim());
-    dispatch({type:"ADD_KILLER_ROUND",round:{id:"kr_"+Date.now(),label:newRound.label,deadline:newRound.deadline?new Date(newRound.deadline).toISOString():null,categories:cats,predictions:{},actuals:{},resolved:false,steals:[],houseSteals:[]}});
-    setNewRound({label:"",deadline:"",categories:KILLER_STATS.map(s=>({...s}))});
+    if (!selMatchDay && !customLabel) return;
+    const cats = newCats.filter(c=>c.label.trim());
+    const label = customLabel.trim() || selDay?.label || "Killer Round";
+    // Auto-deadline: 1 hour before the earliest kickoff in the day
+    let deadline = customDeadline ? new Date(customDeadline).toISOString() : null;
+    if (!deadline && dayFixtures.length) {
+      const earliest = Math.min(...dayFixtures.map(m=>new Date(m.kickoff).getTime()));
+      deadline = new Date(earliest - 3600000).toISOString();
+    }
+    dispatch({type:"ADD_KILLER_ROUND", round:{
+      id: "kr_"+Date.now(),
+      label,
+      matchDayId: selMatchDay||null,
+      matchIds:   dayFixtures.map(m=>m.id),
+      deadline,
+      categories: cats,
+      predictions: {},
+      matchStats:  {},
+      actuals:     {},
+      resolved:    false,
+      steals:      [],
+      houseSteals: [],
+    }});
+    setSelMatchDay(""); setCustomLabel(""); setCustomDeadline("");
+    setNewCats(KILLER_STATS.map(s=>({...s})));
   }
 
-  function saveActuals() { if (!selId) return; dispatch({type:"SET_KILLER_ACTUALS",roundId:selId,actuals}); }
-
-  async function fetchBBCStats() {
-    if (!bbcUrl.trim() || !selId) return;
-    setFetchingStats(true); setFetchMsg({ text:"", ok:true });
+  // ── Per-match BBC fetch ──────────────────────────────────────────────────────
+  async function fetchMatchStats(matchId) {
+    const url = (matchUrls[matchId]||"").trim();
+    if (!url || !selId) return;
+    setFetching(p=>({...p,[matchId]:true}));
+    setFetchMsgs(p=>({...p,[matchId]:{text:"",ok:true}}));
     try {
-      const res = await fetch(`/api/fetch-stats?url=${encodeURIComponent(bbcUrl.trim())}`);
+      const res  = await fetch(`/api/fetch-stats?url=${encodeURIComponent(url)}`);
       const data = await res.json();
       if (!data.ok || !data.stats?.stats) {
-        setFetchMsg({ text: data.error || "No stats found on that page.", ok:false });
+        setFetchMsgs(p=>({...p,[matchId]:{text:data.error||"No stats found.",ok:false}}));
         return;
       }
-      const bbcStats = data.stats.stats; // [{ label, home, away }]
-      const cats = round?.categories || KILLER_STATS;
-      const filled = {};
+      const bbcStats = data.stats.stats;
+      const cats = round?.categories||KILLER_STATS;
+      const statVals = {};
       let matched = 0;
       cats.forEach(cat => {
-        const labelLower = cat.label.toLowerCase().replace(/^total\s+/,"");
-        // Try to find a BBC stat whose label (stripped of "Total ") fuzzy-matches
+        const lbl = cat.label.toLowerCase().replace(/^total\s+/,"");
         const hit = bbcStats.find(s => {
-          const sLower = s.label.toLowerCase().replace(/^total\s+/,"");
-          return sLower === labelLower || sLower.includes(labelLower) || labelLower.includes(sLower);
+          const sl = s.label.toLowerCase().replace(/^total\s+/,"");
+          return sl===lbl || sl.includes(lbl) || lbl.includes(sl);
         });
-        if (hit && hit.home !== undefined && hit.away !== undefined) {
-          filled[cat.id] = String(Math.round((Number(hit.home) + Number(hit.away)) * 10) / 10);
+        if (hit && hit.home!==undefined && hit.away!==undefined) {
+          statVals[cat.id] = Math.round((Number(hit.home)+Number(hit.away))*10)/10;
           matched++;
         }
       });
-      setActuals(prev => ({ ...prev, ...filled }));
-      const home = data.stats.home.name, away = data.stats.away.name;
-      setFetchMsg({ text:`✓ Fetched ${home} v ${away} — auto-filled ${matched}/${cats.length} stats. Check values then save.`, ok:true });
+      const statsRow = {
+        fetched: true,
+        home: data.stats.home.name,
+        away: data.stats.away.name,
+        stats: statVals,
+      };
+      dispatch({type:"SET_KILLER_MATCH_STATS", roundId:selId, matchId, stats:statsRow});
+      setFetchMsgs(p=>({...p,[matchId]:{
+        text:`✓ ${data.stats.home.name} v ${data.stats.away.name} — ${matched}/${cats.length} stats fetched`,
+        ok:true,
+      }}));
     } catch(e) {
-      setFetchMsg({ text:"Fetch failed: " + e.message, ok:false });
+      setFetchMsgs(p=>({...p,[matchId]:{text:"Fetch failed: "+e.message,ok:false}}));
     } finally {
-      setFetchingStats(false);
+      setFetching(p=>({...p,[matchId]:false}));
     }
   }
 
-  function resolveRound() {
-    if (!round) return;
-    const cats = round.categories||KILLER_STATS;
+  function saveActuals() {
+    if (!selId) return;
+    dispatch({type:"SET_KILLER_ACTUALS", roundId:selId, actuals:computedActuals});
+  }
+
+  // ── Resolve ──────────────────────────────────────────────────────────────────
+  function doResolve() {
+    if (!resolveRound_) return;
+    const cats = resolveStats;
     const finalSteals=[], finalHouseSteals=[];
     cats.forEach(stat=>{
-      const qr=calcKillerQuestion(stat.id,game.players,round.predictions||{},round.actuals?.[stat.id]);
+      const qr=calcKillerQuestion(stat.id,game.players,resolveRound_.predictions||{},resolveRound_.actuals?.[stat.id]);
       if (!qr) return;
       const sc=qr.exact?4:2;
       if (qr.houseWins) { (houseSteals[stat.id]||[]).slice(0,2).forEach(v=>{if(v)finalHouseSteals.push({victim:v,pts:50,question:stat.id});}); }
       else { qr.winners.forEach(w=>{(steals[`${stat.id}_${w}`]||[]).slice(0,sc).forEach(v=>{if(v)finalSteals.push({winner:w,victim:v,pts:50,question:stat.id,exact:qr.exact});});}); }
     });
-    const qwa=cats.filter(s=>round.actuals?.[s.id]!==""&&round.actuals?.[s.id]!==undefined);
-    if (qwa.length&&qwa.every(s=>calcKillerQuestion(s.id,game.players,round.predictions||{},round.actuals[s.id])?.houseWins)) {
+    const qwa=cats.filter(s=>resolveRound_.actuals?.[s.id]!==""&&resolveRound_.actuals?.[s.id]!==undefined);
+    if (qwa.length&&qwa.every(s=>calcKillerQuestion(s.id,game.players,resolveRound_.predictions||{},resolveRound_.actuals[s.id])?.houseWins)) {
       game.players.forEach(p=>finalHouseSteals.push({victim:p,pts:50,allQuestions:true}));
     }
-    const agg=calcKillerAggregate(game.players,round.predictions||{},round.actuals||{},cats);
+    const agg=calcKillerAggregate(game.players,resolveRound_.predictions||{},resolveRound_.actuals||{},cats);
     const starBonus=agg.star||null;
-    const correctStar=game.players.filter(p=>round.predictions?.[p]?.__star===agg.star);
+    const correctStar=game.players.filter(p=>resolveRound_.predictions?.[p]?.__star===agg.star);
     const starPredAwards=correctStar.length?correctStar.map(p=>({player:p,pts:Math.floor(100/correctStar.length)})):[];
-    const correctWorst=game.players.filter(p=>round.predictions?.[p]?.__worst===agg.worst);
+    const correctWorst=game.players.filter(p=>resolveRound_.predictions?.[p]?.__worst===agg.worst);
     const worstPredAwards=correctWorst.length?correctWorst.map(p=>({player:p,pts:Math.floor(100/correctWorst.length)})):[];
-    dispatch({type:"RESOLVE_KILLER",roundId:selId,steals:finalSteals,houseSteals:finalHouseSteals,starBonus,starPredAwards,worstPredAwards});
+    dispatch({type:"RESOLVE_KILLER",roundId:resolveId,steals:finalSteals,houseSteals:finalHouseSteals,starBonus,starPredAwards,worstPredAwards});
   }
 
-  const tabDefs = manualOnly ? [{k:"resolve",l:"Resolve & Steals"}] : [{k:"create",l:"Create Round"},{k:"actuals",l:"Enter Actuals"},{k:"resolve",l:"Resolve & Steals"}];
+  const tabDefs = manualOnly
+    ? [{k:"resolve",l:"Resolve & Steals"}]
+    : [{k:"create",l:"Create Round"},{k:"actuals",l:"Enter Actuals"},{k:"resolve",l:"Resolve & Steals"}];
+
+  const cellStyle = {
+    padding:"8px 10px", fontSize:13, borderRight:"1px solid rgba(255,255,255,0.06)",
+    fontFamily:"Oswald,sans-serif", textAlign:"center", minWidth:80,
+  };
 
   return (
     <div>
@@ -5486,113 +5571,248 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
           <button key={t.k} className={`tab ${tab===t.k?"active":""}`} style={tab===t.k?{color:"var(--red)",borderBottomColor:"var(--red)"}:{}} onClick={()=>setTab(t.k)}>{t.l}</button>
         ))}
       </div>
+
+      {/* ══ CREATE ROUND ══════════════════════════════════════════════════════ */}
       {tab==="create"&&(
         <div>
-          <div className="notice" style={{background:"rgba(201,168,76,0.08)",borderColor:"rgba(201,168,76,0.3)"}}>🔌 Once the fixture API is connected, labels and deadlines will auto-populate from match data.</div>
-          <div className="admin-grid" style={{marginBottom:14}}>
-            <div className="admin-field" style={{gridColumn:"1/-1"}}><label className="admin-label">Round Label</label><input className="admin-input" placeholder="e.g. Matchday 3 — 15 Jun" value={newRound.label} onChange={e=>setNewRound(p=>({...p,label:e.target.value}))} /></div>
-            <div className="admin-field"><label className="admin-label">Deadline (optional)</label><input type="datetime-local" className="admin-input" value={newRound.deadline} onChange={e=>setNewRound(p=>({...p,deadline:e.target.value}))} /></div>
+          {/* Match Day picker */}
+          <div className="admin-field" style={{marginBottom:14}}>
+            <label className="admin-label">Match Day</label>
+            <select className="admin-input" value={selMatchDay} onChange={e=>setSelMatchDay(e.target.value)}>
+              <option value="">— Select an upcoming match day —</option>
+              {upcomingDays.map(d=><option key={d.id} value={d.id}>{d.label} · {d.date}</option>)}
+            </select>
           </div>
+
+          {/* Fixture preview */}
+          {selDay&&dayFixtures.length>0&&(
+            <div style={{marginBottom:14,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(204,16,32,0.15)",borderRadius:4,padding:"12px 14px"}}>
+              <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>{dayFixtures.length} FIXTURE{dayFixtures.length!==1?"S":""} THIS DAY</div>
+              {dayFixtures.map(m=>(
+                <div key={m.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",fontSize:13,color:"var(--cream)"}}>
+                  <span>{m.teams}</span>
+                  <span style={{color:"var(--silver)",fontSize:11}}>{m.kickoff?formatKickoff(m.kickoff):""}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Label + deadline */}
+          <div className="admin-grid" style={{marginBottom:14}}>
+            <div className="admin-field" style={{gridColumn:"1/-1"}}>
+              <label className="admin-label">Round Label <span style={{color:"var(--silver)",fontWeight:400}}>(auto-filled from match day if blank)</span></label>
+              <input className="admin-input" placeholder={selDay?.label||"e.g. Match Day 19 — 29 Jun"} value={customLabel} onChange={e=>setCustomLabel(e.target.value)} />
+            </div>
+            <div className="admin-field">
+              <label className="admin-label">Deadline override <span style={{color:"var(--silver)",fontWeight:400}}>(auto: 1hr before first kick-off)</span></label>
+              <input type="datetime-local" className="admin-input" value={customDeadline} onChange={e=>setCustomDeadline(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Stat categories */}
           <div style={{marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div className="admin-label">Categories</div><button className="btn btn-sm btn-pitch" onClick={addCat}>+ Add</button></div>
-            {newRound.categories.map((cat,i)=>(
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div className="admin-label">Stat Categories</div>
+              <button className="btn btn-sm btn-pitch" onClick={addCat}>+ Add</button>
+            </div>
+            {newCats.map((cat,i)=>(
               <div key={cat.id} style={{display:"flex",gap:8,marginBottom:6}}>
                 <input className="admin-input" style={{flex:1}} placeholder="e.g. Total Aerial Duels" value={cat.label} onChange={e=>updateCat(i,e.target.value)} />
-                <button className="btn btn-sm btn-red" onClick={()=>removeCat(i)} disabled={newRound.categories.length<=1}>✕</button>
+                <button className="btn btn-sm btn-red" onClick={()=>removeCat(i)} disabled={newCats.length<=1}>✕</button>
               </div>
             ))}
           </div>
-          <div className="flex-end"><button className="btn btn-gold" onClick={createRound} disabled={!newRound.label}>Create Killer Round</button></div>
-          {(game.killerRounds||[]).length>0&&<div style={{marginTop:16}}>{(game.killerRounds||[]).map(r=><div key={r.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #3a1515",color:"var(--cream)",fontSize:13}}><span>{r.label}</span><span style={{color:r.resolved?"#27ae60":"var(--silver)"}}>{r.resolved?"✓":"Pending"}</span></div>)}</div>}
-        </div>
-      )}
-      {tab==="actuals"&&(
-        <div>
-          <div className="admin-field" style={{marginBottom:14}}>
-            <label className="admin-label">Round</label>
-            <select className="admin-input" value={selId} onChange={e=>{setSelId(e.target.value);setActuals((game.killerRounds||[]).find(r=>r.id===e.target.value)?.actuals||{});setFetchMsg({text:"",ok:true});}}>
-              <option value="">— Select —</option>
-              {(game.killerRounds||[]).filter(r=>!r.resolved).map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
-            </select>
+
+          <div className="flex-end">
+            <button className="btn btn-gold" onClick={createRound} disabled={!selMatchDay&&!customLabel}>Create Killer Round</button>
           </div>
-          {round&&(
-            <div>
-              {/* ── BBC auto-fetch ── */}
-              <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(204,16,32,0.2)",borderRadius:4,padding:"14px 16px",marginBottom:16}}>
-                <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--red)",marginBottom:10}}>AUTO-FILL FROM BBC SPORT</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                  <input
-                    className="admin-input"
-                    style={{flex:1,minWidth:240}}
-                    placeholder="https://www.bbc.co.uk/sport/football/live/..."
-                    value={bbcUrl}
-                    onChange={e=>setBbcUrl(e.target.value)}
-                  />
-                  <button
-                    className="btn btn-sm btn-gold"
-                    onClick={fetchBBCStats}
-                    disabled={fetchingStats||!bbcUrl.trim()}
-                  >{fetchingStats?"Fetching…":"⚡ Fetch Stats"}</button>
+
+          {(game.killerRounds||[]).length>0&&(
+            <div style={{marginTop:20}}>
+              <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>EXISTING ROUNDS</div>
+              {(game.killerRounds||[]).map(r=>(
+                <div key={r.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #3a1515",color:"var(--cream)",fontSize:13}}>
+                  <span>{r.label}</span>
+                  <span style={{color:r.resolved?"#27ae60":"var(--silver)",fontSize:11}}>{r.resolved?"✓ Resolved":"Pending"}</span>
                 </div>
-                {fetchMsg.text&&(
-                  <div style={{marginTop:8,fontSize:12,color:fetchMsg.ok?"#4ade80":"var(--red)",fontStyle:"italic"}}>
-                    {fetchMsg.text}
-                  </div>
-                )}
-              </div>
-              {/* ── Manual inputs ── */}
-              <div className="admin-grid">
-                {roundStats.map(s=>(
-                  <div key={s.id} className="admin-field">
-                    <label className="admin-label">{s.label}</label>
-                    <input type="number" min="0" className="admin-input" value={actuals[s.id]??""} onChange={e=>setActuals(p=>({...p,[s.id]:e.target.value}))} />
-                  </div>
-                ))}
-              </div>
-              <div className="flex-end"><button className="btn btn-gold" onClick={saveActuals}>Save Actuals</button></div>
+              ))}
             </div>
           )}
         </div>
       )}
+
+      {/* ══ ENTER ACTUALS ════════════════════════════════════════════════════ */}
+      {tab==="actuals"&&(
+        <div>
+          <div className="admin-field" style={{marginBottom:16}}>
+            <label className="admin-label">Round</label>
+            <select className="admin-input" value={selId} onChange={e=>{setSelId(e.target.value);setMatchUrls({});setFetchMsgs({});}}>
+              <option value="">— Select —</option>
+              {(game.killerRounds||[]).filter(r=>!r.resolved).map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          </div>
+
+          {round&&(
+            <div>
+              {/* ── Per-fixture BBC URL inputs ─────────────────────────────── */}
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--red)",marginBottom:10}}>FETCH STATS — ONE BBC URL PER FIXTURE</div>
+                {roundMatches.length===0&&(
+                  <div style={{fontSize:12,color:"var(--silver)",fontStyle:"italic"}}>This round has no fixtures linked. Re-create it using the Create Round tab with a Match Day selected.</div>
+                )}
+                {roundMatches.map(m=>{
+                  const ms = round.matchStats?.[m.id];
+                  return (
+                    <div key={m.id} style={{marginBottom:12,padding:"12px 14px",background:"rgba(255,255,255,0.03)",border:`1px solid ${ms?.fetched?"rgba(39,174,96,0.3)":"rgba(204,16,32,0.15)"}`,borderRadius:4}}>
+                      <div style={{fontFamily:"Oswald,sans-serif",fontWeight:700,fontSize:14,color:"var(--cream)",marginBottom:8}}>
+                        {m.teams}
+                        {ms?.fetched&&<span style={{marginLeft:10,fontSize:11,color:"#27ae60",fontWeight:400}}>✓ stats fetched</span>}
+                      </div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                        <input className="admin-input" style={{flex:1,minWidth:220,fontSize:12}} placeholder="https://www.bbc.co.uk/sport/football/live/..."
+                          value={matchUrls[m.id]||""} onChange={e=>setMatchUrls(p=>({...p,[m.id]:e.target.value}))} />
+                        <button className="btn btn-sm btn-gold" onClick={()=>fetchMatchStats(m.id)} disabled={fetching[m.id]||!(matchUrls[m.id]||"").trim()}>
+                          {fetching[m.id]?"Fetching…":"⚡ Fetch"}
+                        </button>
+                      </div>
+                      {fetchMsgs[m.id]?.text&&(
+                        <div style={{marginTop:6,fontSize:11,color:fetchMsgs[m.id].ok?"#4ade80":"var(--red)",fontStyle:"italic"}}>
+                          {fetchMsgs[m.id].text}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ── Stats grid ────────────────────────────────────────────── */}
+              {Object.keys(round.matchStats||{}).length>0&&(
+                <div style={{marginBottom:20,overflowX:"auto"}}>
+                  <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--red)",marginBottom:10}}>STATS GRID</div>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
+                    <thead>
+                      <tr style={{background:"rgba(204,16,32,0.12)"}}>
+                        <th style={{...cellStyle,textAlign:"left",minWidth:160,color:"var(--silver)"}}>Fixture</th>
+                        {roundStats.map(s=>(
+                          <th key={s.id} style={{...cellStyle,color:"var(--silver)",fontSize:11,letterSpacing:1}}>{s.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {roundMatches.map((m,i)=>{
+                        const ms = round.matchStats?.[m.id];
+                        return (
+                          <tr key={m.id} style={{background:i%2===0?"rgba(255,255,255,0.02)":"transparent"}}>
+                            <td style={{...cellStyle,textAlign:"left",color:"var(--cream)",fontWeight:700}}>{m.teams}</td>
+                            {roundStats.map(s=>(
+                              <td key={s.id} style={{...cellStyle,color:ms?.stats?.[s.id]!==undefined?"var(--cream)":"rgba(255,255,255,0.2)"}}>
+                                {ms?.stats?.[s.id]!==undefined ? ms.stats[s.id] : "—"}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                      {/* Grand total row */}
+                      <tr style={{background:"rgba(204,16,32,0.12)",borderTop:"2px solid rgba(204,16,32,0.4)"}}>
+                        <td style={{...cellStyle,textAlign:"left",color:"var(--gold)",fontWeight:700,fontFamily:"Oswald,sans-serif",letterSpacing:1}}>GRAND TOTAL</td>
+                        {roundStats.map(s=>(
+                          <td key={s.id} style={{...cellStyle,color:"var(--gold)",fontWeight:700,fontSize:15}}>
+                            {computedActuals[s.id]||0}
+                          </td>
+                        ))}
+                      </tr>
+                      {/* Players' estimates */}
+                      {game.players.map((p,i)=>(
+                        <tr key={p} style={{background:i%2===0?"rgba(255,255,255,0.01)":"transparent",borderTop:i===0?"1px solid rgba(255,255,255,0.1)":"none"}}>
+                          <td style={{...cellStyle,textAlign:"left",color:"var(--silver)",fontSize:12}}>{p}</td>
+                          {roundStats.map(s=>{
+                            const est = Number(round.predictions?.[p]?.[s.id]??NaN);
+                            const actual = computedActuals[s.id];
+                            const diff = !isNaN(est)&&actual ? est-actual : null;
+                            return (
+                              <td key={s.id} style={{...cellStyle,color:!isNaN(est)?"var(--cream)":"rgba(255,255,255,0.2)"}}>
+                                {!isNaN(est) ? (
+                                  <span>
+                                    {est}
+                                    {diff!==null&&<span style={{fontSize:10,marginLeft:4,color:diff===0?"#27ae60":Math.abs(diff)<=5?"#f39c12":"rgba(255,255,255,0.4)"}}>
+                                      {diff===0?"✓":`${diff>0?"+":""}${diff}`}
+                                    </span>}
+                                  </span>
+                                ) : "—"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex-end" style={{gap:10}}>
+                {!allFetched&&roundMatches.length>0&&(
+                  <span style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",alignSelf:"center"}}>
+                    {Object.values(round.matchStats||{}).filter(m=>m.fetched).length}/{roundMatches.length} fixtures fetched
+                  </span>
+                )}
+                <button className="btn btn-gold" onClick={saveActuals} disabled={Object.keys(computedActuals).length===0}>
+                  Save Grand Totals as Actuals
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ RESOLVE & STEALS ════════════════════════════════════════════════ */}
       {tab==="resolve"&&(
         <div>
           <div className="admin-field" style={{marginBottom:14}}>
             <label className="admin-label">Round</label>
-            <select className="admin-input" value={selId} onChange={e=>{setSelId(e.target.value);setSteals({});setHouseSteals({});}}>
+            <select className="admin-input" value={resolveId} onChange={e=>{setResolveId(e.target.value);setSteals({});setHouseSteals({});}}>
               <option value="">— Select —</option>
               {(game.killerRounds||[]).filter(r=>!r.resolved&&r.actuals&&Object.keys(r.actuals).length>0).map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
             </select>
           </div>
-          {round&&(
+          {resolveRound_&&(
             <div>
-              {roundStats.map(stat=>{
-                const qr=calcKillerQuestion(stat.id,game.players,round.predictions||{},round.actuals?.[stat.id]);
-                if (!qr) return <div key={stat.id} className="notice" style={{marginBottom:6}}>{stat.label} — no actual</div>;
+              {resolveStats.map(stat=>{
+                const qr=calcKillerQuestion(stat.id,game.players,resolveRound_.predictions||{},resolveRound_.actuals?.[stat.id]);
+                if (!qr) return <div key={stat.id} className="notice" style={{marginBottom:6}}>{stat.label} — no actual entered</div>;
                 const sc=qr.exact?4:2;
                 return (
                   <div key={stat.id} style={{padding:"12px 0",borderBottom:"1px solid #3a1515"}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
                       <span style={{fontFamily:"Oswald,sans-serif",fontSize:13,letterSpacing:1,color:"var(--cream)"}}>{stat.label}</span>
-                      <span style={{fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--gold)"}}>Actual: {round.actuals?.[stat.id]}</span>
+                      <span style={{fontFamily:"Oswald,sans-serif",fontSize:12,color:"var(--gold)"}}>Actual: {resolveRound_.actuals?.[stat.id]}</span>
                     </div>
                     {qr.houseWins?(
-                      <div><div style={{color:"var(--red)",fontSize:12,marginBottom:6}}>🏠 House wins — pick 2 victims</div>
-                        {[0,1].map(i=><select key={i} className="admin-input" style={{maxWidth:160,marginRight:6,marginBottom:4}} value={houseSteals[stat.id]?.[i]||""} onChange={e=>setHouseSteals(p=>{const a=[...(p[stat.id]||[])];a[i]=e.target.value;return {...p,[stat.id]:a};})}>
-                          <option value="">— Victim {i+1} —</option>{game.players.map(p=><option key={p} value={p}>{p}</option>)}</select>)}
+                      <div>
+                        <div style={{color:"var(--red)",fontSize:12,marginBottom:6}}>🏠 House wins — pick 2 victims</div>
+                        {[0,1].map(i=>(
+                          <select key={i} className="admin-input" style={{maxWidth:160,marginRight:6,marginBottom:4}} value={houseSteals[stat.id]?.[i]||""} onChange={e=>setHouseSteals(p=>{const a=[...(p[stat.id]||[])];a[i]=e.target.value;return {...p,[stat.id]:a};})}>
+                            <option value="">— Victim {i+1} —</option>{game.players.map(p=><option key={p} value={p}>{p}</option>)}
+                          </select>
+                        ))}
                       </div>
                     ):(
                       <div>{qr.winners.map(w=>(
                         <div key={w} style={{marginBottom:8}}>
                           <div style={{color:"#27ae60",fontSize:12,marginBottom:4}}>🏆 {w} {qr.exact?`EXACT — pick ${sc} victims`:"— pick 2 victims"}</div>
-                          {Array.from({length:sc}).map((_,i)=><select key={i} className="admin-input" style={{maxWidth:160,marginRight:6,marginBottom:4}} value={steals[`${stat.id}_${w}`]?.[i]||""} onChange={e=>setSteals(p=>{const a=[...(p[`${stat.id}_${w}`]||[])];a[i]=e.target.value;return {...p,[`${stat.id}_${w}`]:a};})}>
-                            <option value="">— Victim {i+1} —</option>{game.players.filter(p=>p!==w).map(p=><option key={p} value={p}>{p}</option>)}</select>)}
+                          {Array.from({length:sc}).map((_,i)=>(
+                            <select key={i} className="admin-input" style={{maxWidth:160,marginRight:6,marginBottom:4}} value={steals[`${stat.id}_${w}`]?.[i]||""} onChange={e=>setSteals(p=>{const a=[...(p[`${stat.id}_${w}`]||[])];a[i]=e.target.value;return {...p,[`${stat.id}_${w}`]:a};})}>
+                              <option value="">— Victim {i+1} —</option>{game.players.filter(p=>p!==w).map(p=><option key={p} value={p}>{p}</option>)}
+                            </select>
+                          ))}
                         </div>
                       ))}</div>
                     )}
                   </div>
                 );
               })}
-              <div className="flex-end" style={{marginTop:16}}><button className="btn btn-red" onClick={resolveRound}>Resolve & Apply Points</button></div>
+              <div className="flex-end" style={{marginTop:16}}>
+                <button className="btn btn-red" onClick={doResolve}>Resolve & Apply Points</button>
+              </div>
             </div>
           )}
         </div>
