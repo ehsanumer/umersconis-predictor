@@ -7184,6 +7184,52 @@ function ShareView({ game, session }) {
 }
 
 // ─── VENDETTAS & BFFs ─────────────────────────────────────────────────────────
+// Defined outside RelationshipSurveyModal so its identity is stable across
+// parent re-renders — prevents React unmounting/remounting the inputs on every
+// keystroke (which dismissed the mobile keyboard after each character).
+function RelEntryEditor({ title, emoji, list, setList, targets, placeholder }) {
+  function update(i, field, val) {
+    setList(prev => prev.map((e, j) => j === i ? { ...e, [field]: val } : e));
+  }
+  function remove(i) { setList(prev => prev.filter((_, j) => j !== i)); }
+  function add()     { setList(prev => prev.length < 3 ? [...prev, { target:"", reason:"" }] : prev); }
+
+  return (
+    <div>
+      <div style={{fontFamily:"Oswald,sans-serif",fontSize:15,letterSpacing:2,marginBottom:12}}>{emoji} {title}</div>
+      {list.map((e, i) => (
+        <div key={i} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4,padding:"10px 12px"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+            <select className="admin-input" value={e.target}
+              onChange={ev => update(i, "target", ev.target.value)}
+              style={{flex:1,background:"#1a1a1a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)"}}>
+              <option value="">— Select player —</option>
+              {/* Include the currently selected value so the select renders correctly,
+                  but exclude players already picked in OTHER entries. */}
+              {targets.filter(t => t === e.target || !list.some((x,j) => j !== i && x.target === t)).map(t =>
+                <option key={t} value={t}>{t}</option>
+              )}
+            </select>
+            {list.length > 1 && (
+              <button onClick={() => remove(i)}
+                style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:18,lineHeight:1,flexShrink:0}}>×</button>
+            )}
+          </div>
+          <input className="admin-input" placeholder={placeholder} value={e.reason}
+            onChange={ev => update(i, "reason", ev.target.value)}
+            style={{width:"100%",background:"#1a1a1a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",boxSizing:"border-box"}} />
+        </div>
+      ))}
+      {list.length < 3 && (
+        <button className="btn btn-sm" onClick={add}
+          style={{background:"rgba(255,255,255,0.06)",color:"var(--silver)",border:"1px solid rgba(255,255,255,0.12)",marginTop:4}}>
+          + Add another (max 3)
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function RelationshipSurveyModal({ game, dispatch, session }) {
   const player = session?.username;
   const others = (game.players || []).filter(p => p !== player);
@@ -7191,17 +7237,6 @@ export function RelationshipSurveyModal({ game, dispatch, session }) {
   const [bffs, setBffs] = useState([{ target:"", reason:"" }]);
   const [step, setStep] = useState(1); // 1=vendettas, 2=bffs, 3=review
   const [error, setError] = useState("");
-
-  function addEntry(list, setList) {
-    if (list.length < 3) setList([...list, { target:"", reason:"" }]);
-  }
-  function updateEntry(list, setList, i, field, val) {
-    const updated = list.map((e, j) => j === i ? { ...e, [field]: val } : e);
-    setList(updated);
-  }
-  function removeEntry(list, setList, i) {
-    setList(list.filter((_, j) => j !== i));
-  }
 
   function validateStep(list) {
     const filled = list.filter(e => e.target && e.reason.trim());
@@ -7217,39 +7252,6 @@ export function RelationshipSurveyModal({ game, dispatch, session }) {
     dispatch({ type:"SUBMIT_RELATIONSHIPS", player, vendettas:filledVs, bffs:filledBfs });
   }
 
-  const EntriesEditor = ({ title, emoji, list, setList, targets, placeholder }) => (
-    <div>
-      <div style={{fontFamily:"Oswald,sans-serif",fontSize:15,letterSpacing:2,marginBottom:12}}>{emoji} {title}</div>
-      {list.map((e, i) => (
-        <div key={i} style={{marginBottom:12,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:4,padding:"10px 12px"}}>
-          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-            <select className="admin-input" value={e.target}
-              onChange={ev => updateEntry(list, setList, i, "target", ev.target.value)}
-              style={{flex:1,background:"#1a1a1a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)"}}>
-              <option value="">— Select player —</option>
-              {targets.filter(t => t !== e.target && !list.some((x,j)=>j!==i&&x.target===t)).map(t=>
-                <option key={t} value={t}>{t}</option>
-              )}
-            </select>
-            {list.length > 1 && (
-              <button onClick={() => removeEntry(list, setList, i)}
-                style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:18,lineHeight:1}}>×</button>
-            )}
-          </div>
-          <input className="admin-input" placeholder={placeholder} value={e.reason}
-            onChange={ev => updateEntry(list, setList, i, "reason", ev.target.value)}
-            style={{width:"100%",background:"#1a1a1a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",boxSizing:"border-box"}} />
-        </div>
-      ))}
-      {list.length < 3 && (
-        <button className="btn btn-sm" onClick={() => addEntry(list, setList)}
-          style={{background:"rgba(255,255,255,0.06)",color:"var(--silver)",border:"1px solid rgba(255,255,255,0.12)",marginTop:4}}>
-          + Add another (max 3)
-        </button>
-      )}
-    </div>
-  );
-
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div style={{background:"#0f0f0f",border:"1px solid rgba(201,168,76,0.4)",borderRadius:8,maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto",padding:28}}>
@@ -7260,7 +7262,7 @@ export function RelationshipSurveyModal({ game, dispatch, session }) {
 
         {step === 1 && (
           <>
-            <EntriesEditor
+            <RelEntryEditor
               title="YOUR VENDETTAS" emoji="💀"
               list={vendettas} setList={setVendettas} targets={others}
               placeholder="Why are you rooting against them?" />
@@ -7276,7 +7278,7 @@ export function RelationshipSurveyModal({ game, dispatch, session }) {
 
         {step === 2 && (
           <>
-            <EntriesEditor
+            <RelEntryEditor
               title="YOUR BFFs" emoji="💚"
               list={bffs} setList={setBffs} targets={others}
               placeholder="Why are you rooting for them?" />
