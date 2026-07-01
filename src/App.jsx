@@ -1752,6 +1752,9 @@ export function gameReducer(state, action) {
     case "SET_KILLER_ACTUALS": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,actuals:action.actuals}:r) };
     case "SET_KILLER_MATCH_STATS": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,matchStats:{...(r.matchStats||{}),[action.matchId]:action.stats}}:r) };
     case "RESOLVE_KILLER": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,resolved:true,steals:action.steals,houseSteals:action.houseSteals,starBonus:action.starBonus,starPredAwards:action.starPredAwards,worstPredAwards:action.worstPredAwards}:r) };
+    case "REQUEST_KILLER_LATE": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,lateRequests:{...(r.lateRequests||{}),[action.player]:{reason:action.reason,requestedAt:action.requestedAt,status:"pending"}}}:r) };
+    case "APPROVE_KILLER_LATE": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,lateRequests:{...(r.lateRequests||{}),[action.player]:{...(r.lateRequests||{})[action.player],status:"approved",reviewedAt:action.reviewedAt}}}:r) };
+    case "DENY_KILLER_LATE":    return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,lateRequests:{...(r.lateRequests||{}),[action.player]:{...(r.lateRequests||{})[action.player],status:"denied",reviewedAt:action.reviewedAt}}}:r) };
     case "ADD_PLAYER": return { ...state, players:[...(state.players||[]), action.player] };
     case "REMOVE_PLAYER": {
       const p = action.player;
@@ -3145,12 +3148,21 @@ function KillerView({ game, dispatch, session }) {
   const [starPred, setStarPred] = useState("");
   const [worstPred, setWorstPred] = useState("");
   const [saved, setSaved] = useState(false);
+  const [lateReason, setLateReason] = useState({});
+  const [lateSubmitted, setLateSubmitted] = useState({});
 
   function submitKillerPred(round) {
     const cats = round.categories||KILLER_STATS;
     if (!cats.every(s=>(draft[s.id]??round.predictions?.[session.username]?.[s.id])!==undefined&&(draft[s.id]??round.predictions?.[session.username]?.[s.id])!=="")) return;
     dispatch({type:"SET_KILLER_PREDICTION",roundId:round.id,player:session.username,preds:{...draft,__star:starPred||round.predictions?.[session.username]?.__star,__worst:worstPred||round.predictions?.[session.username]?.__worst}});
     setSaved(true); setTimeout(()=>setSaved(false),2000);
+  }
+
+  function requestLate(round) {
+    const reason = (lateReason[round.id]||"").trim();
+    if (!reason) return;
+    dispatch({type:"REQUEST_KILLER_LATE",roundId:round.id,player:session.username,reason,requestedAt:new Date().toISOString()});
+    setLateSubmitted(p=>({...p,[round.id]:true}));
   }
 
   return (
@@ -3163,6 +3175,11 @@ function KillerView({ game, dispatch, session }) {
         const isActive=activeRound===round.id;
         const cats=round.categories||KILLER_STATS;
         const agg=round.resolved?calcKillerAggregate(game.players,round.predictions,round.actuals,cats):null;
+        const myLateReq=(round.lateRequests||{})[session.username];
+        const lateApproved=myLateReq?.status==="approved";
+        const latePending=myLateReq?.status==="pending";
+        const lateDenied=myLateReq?.status==="denied";
+        const canSubmit=!deadlinePassed||(deadlinePassed&&lateApproved);
         return (
           <div key={round.id} className="match-card" style={{marginBottom:10}}>
             <div className="match-header" style={{cursor:"pointer"}} onClick={()=>setActiveRound(isActive?null:round.id)}>
@@ -3171,6 +3188,8 @@ function KillerView({ game, dispatch, session }) {
                 <div className="match-meta">
                   {round.resolved?<span style={{background:"#27ae60",color:"white",padding:"2px 8px",borderRadius:2,fontFamily:"Oswald,sans-serif",fontSize:10}}>RESOLVED</span>:deadlinePassed?<span style={{color:"var(--red)"}}>⚠ Deadline passed</span>:<span style={{color:"var(--gold)"}}>⏱ Open</span>}
                   {myPred&&!round.resolved&&<span style={{fontStyle:"italic"}}>✓ Submitted</span>}
+                  {latePending&&<span style={{color:"#e67e22",fontStyle:"italic"}}>⏳ Late request pending</span>}
+                  {lateApproved&&!myPred&&<span style={{color:"#27ae60",fontStyle:"italic"}}>✓ Late entry approved</span>}
                 </div>
               </div>
               <div style={{color:"var(--silver)"}}>{isActive?"▲":"▼"}</div>
@@ -3179,33 +3198,66 @@ function KillerView({ game, dispatch, session }) {
               <div style={{padding:20}}>
                 {!round.resolved&&(
                   <div style={{marginBottom:20,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(39,174,96,0.2)",borderRadius:4,padding:16}}>
-                    <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:12}}>{deadlinePassed?"⚠ DEADLINE PASSED":"YOUR PREDICTIONS"}</div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-                      {cats.map(stat=>(
-                        <div key={stat.id} className="admin-field">
-                          <label className="login-label" style={{color:"var(--silver)"}}>{stat.label}</label>
-                          <input type="number" min="0" className="pred-input" placeholder="e.g. 45" disabled={deadlinePassed}
-                            value={draft[stat.id]??myPred?.[stat.id]??""} onChange={e=>setDraft(p=>({...p,[stat.id]:e.target.value}))} style={deadlinePassed?{background:"#f0f0f0",color:"#888"}:{}} />
+                    <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:12}}>
+                      {!deadlinePassed?"YOUR PREDICTIONS":canSubmit?"YOUR PREDICTIONS (LATE ENTRY APPROVED)":"⚠ DEADLINE PASSED"}
+                    </div>
+
+                    {/* Late submission request panel — shown when deadline passed, no pred yet, no approved request */}
+                    {deadlinePassed&&!myPred&&!lateApproved&&(
+                      <div style={{marginBottom:16,padding:14,background:"rgba(231,76,60,0.08)",border:"1px solid rgba(231,76,60,0.3)",borderRadius:4}}>
+                        {lateDenied&&<div style={{color:"var(--red)",fontSize:13,marginBottom:10}}>❌ Your late submission request was denied.</div>}
+                        {latePending||lateSubmitted[round.id]?(
+                          <div style={{color:"#e67e22",fontSize:13}}>⏳ Your late submission request is awaiting Umersconi's approval.</div>
+                        ):(
+                          <>
+                            <div style={{fontSize:13,color:"var(--silver)",marginBottom:10}}>The deadline has passed. You can request a late entry — Umersconi will need to approve it before you can submit.</div>
+                            <textarea
+                              className="admin-input"
+                              placeholder="Reason for late submission…"
+                              rows={2}
+                              style={{width:"100%",marginBottom:10,resize:"vertical"}}
+                              value={lateReason[round.id]||""}
+                              onChange={e=>setLateReason(p=>({...p,[round.id]:e.target.value}))}
+                            />
+                            <button className="btn btn-gold" onClick={()=>requestLate(round)} disabled={!(lateReason[round.id]||"").trim()}>
+                              Request Late Submission
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Normal prediction form — open when deadline hasn't passed OR late entry approved */}
+                    {canSubmit&&(
+                      <>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                          {cats.map(stat=>(
+                            <div key={stat.id} className="admin-field">
+                              <label className="login-label" style={{color:"var(--silver)"}}>{stat.label}</label>
+                              <input type="number" min="0" className="pred-input" placeholder="e.g. 45"
+                                value={draft[stat.id]??myPred?.[stat.id]??""} onChange={e=>setDraft(p=>({...p,[stat.id]:e.target.value}))} />
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12,borderTop:"1px solid rgba(201,168,76,0.2)",paddingTop:12}}>
-                      <div className="admin-field">
-                        <label className="login-label" style={{color:"var(--silver)"}}>⭐ Star Pick</label>
-                        <select className="pred-input" disabled={deadlinePassed} value={starPred||myPred?.__star||""} onChange={e=>setStarPred(e.target.value)} style={deadlinePassed?{background:"#f0f0f0",color:"#888"}:{}}>
-                          <option value="">— Pick —</option>
-                          {game.players.map(p=><option key={p} value={p}>{p}</option>)}
-                        </select>
-                      </div>
-                      <div className="admin-field">
-                        <label className="login-label" style={{color:"var(--silver)"}}>💩 Worst Pick</label>
-                        <select className="pred-input" disabled={deadlinePassed} value={worstPred||myPred?.__worst||""} onChange={e=>setWorstPred(e.target.value)} style={deadlinePassed?{background:"#f0f0f0",color:"#888"}:{}}>
-                          <option value="">— Pick —</option>
-                          {game.players.map(p=><option key={p} value={p}>{p}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    {!deadlinePassed&&<div className="flex-end"><button className="btn btn-gold" onClick={()=>submitKillerPred(round)}>{saved?"✓ Saved":myPred?"Update":"Submit"}</button></div>}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12,borderTop:"1px solid rgba(201,168,76,0.2)",paddingTop:12}}>
+                          <div className="admin-field">
+                            <label className="login-label" style={{color:"var(--silver)"}}>⭐ Star Pick</label>
+                            <select className="pred-input" value={starPred||myPred?.__star||""} onChange={e=>setStarPred(e.target.value)}>
+                              <option value="">— Pick —</option>
+                              {game.players.map(p=><option key={p} value={p}>{p}</option>)}
+                            </select>
+                          </div>
+                          <div className="admin-field">
+                            <label className="login-label" style={{color:"var(--silver)"}}>💩 Worst Pick</label>
+                            <select className="pred-input" value={worstPred||myPred?.__worst||""} onChange={e=>setWorstPred(e.target.value)}>
+                              <option value="">— Pick —</option>
+                              {game.players.map(p=><option key={p} value={p}>{p}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex-end"><button className="btn btn-gold" onClick={()=>submitKillerPred(round)}>{saved?"✓ Saved":myPred?"Update":"Submit"}</button></div>
+                      </>
+                    )}
                   </div>
                 )}
                 {round.resolved&&agg&&(
@@ -5555,9 +5607,16 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
     dispatch({type:"RESOLVE_KILLER",roundId:resolveId,steals:finalSteals,houseSteals:finalHouseSteals,starBonus,starPredAwards,worstPredAwards});
   }
 
+  const pendingLateCount = (game.killerRounds||[]).reduce((n,r)=>n+Object.values(r.lateRequests||{}).filter(req=>req.status==="pending").length,0);
+
   const tabDefs = manualOnly
     ? [{k:"resolve",l:"Resolve & Steals"}]
-    : [{k:"create",l:"Create Round"},{k:"actuals",l:"Enter Actuals"},{k:"resolve",l:"Resolve & Steals"}];
+    : [
+        {k:"create",l:"Create Round"},
+        {k:"actuals",l:"Enter Actuals"},
+        {k:"resolve",l:"Resolve & Steals"},
+        {k:"late",l:`Late Requests${pendingLateCount>0?` (${pendingLateCount})`:""}`,},
+      ];
 
   const cellStyle = {
     padding:"8px 10px", fontSize:13, borderRight:"1px solid rgba(255,255,255,0.06)",
@@ -5815,6 +5874,46 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══ LATE REQUESTS ════════════════════════════════════════════════════ */}
+      {tab==="late"&&(
+        <div>
+          {(game.killerRounds||[]).every(r=>!Object.keys(r.lateRequests||{}).length)&&(
+            <div className="empty">No late submission requests yet.</div>
+          )}
+          {(game.killerRounds||[]).map(r=>{
+            const reqs=Object.entries(r.lateRequests||{});
+            if (!reqs.length) return null;
+            return (
+              <div key={r.id} style={{marginBottom:20}}>
+                <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:10}}>⚔ {r.label}</div>
+                {reqs.map(([player,req])=>(
+                  <div key={player} style={{display:"flex",flexDirection:"column",gap:6,padding:"12px 14px",marginBottom:8,background:"var(--card-bg)",border:`1px solid ${req.status==="pending"?"rgba(230,126,34,0.4)":req.status==="approved"?"rgba(39,174,96,0.4)":"rgba(204,16,32,0.3)"}`,borderRadius:4}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontFamily:"Oswald,sans-serif",fontSize:14}}>{player}</span>
+                      <span style={{fontSize:11,color:req.status==="pending"?"#e67e22":req.status==="approved"?"#27ae60":"var(--red)",fontFamily:"Oswald,sans-serif",letterSpacing:1}}>
+                        {req.status==="pending"?"⏳ PENDING":req.status==="approved"?"✓ APPROVED":"✕ DENIED"}
+                      </span>
+                    </div>
+                    <div style={{fontSize:13,color:"var(--cream)",fontStyle:"italic"}}>"{req.reason}"</div>
+                    <div style={{fontSize:11,color:"var(--silver)"}}>Requested: {new Date(req.requestedAt).toLocaleString()}</div>
+                    {req.status==="pending"&&(
+                      <div style={{display:"flex",gap:8,marginTop:4}}>
+                        <button className="btn btn-gold" style={{flex:1}} onClick={()=>dispatch({type:"APPROVE_KILLER_LATE",roundId:r.id,player,reviewedAt:new Date().toISOString()})}>
+                          ✓ Approve
+                        </button>
+                        <button className="btn btn-red" style={{flex:1}} onClick={()=>dispatch({type:"DENY_KILLER_LATE",roundId:r.id,player,reviewedAt:new Date().toISOString()})}>
+                          ✕ Deny
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -7584,19 +7683,19 @@ export default function App() {
   const primaryNav = [
     {id:"leaderboard", l:"Standings"},
     {id:"matches",     l:"Matches"},
-    {id:"tournies",    l:"Tournies"},
+    {id:"killer",      l:"⚔ Killer"},
+    {id:"bracket",     l:"Bracket"},
+    {id:"recap",       l:"Recap"},
     {id:"chaos",       l:"Chaos Ledger"},
-    // Tombola stays primary until the admin locks it; badge pulses while the player has draws left
-    ...(!game?.tombola?.locked ? [{id:"tombola", l:"🎰 Tombola"}] : []),
   ];
 
   // Hamburger menu groups
   const menuGroups = [
     { label: "🎯 My Game",    items: [{id:"mypicks",l:"👤 My Picks"},{id:"h2h",l:"⚔️ Head to Head"}] },
-    { label: "🏆 Tournament", items: [{id:"bracket",l:"🔲 Bracket"},{id:"recap",l:"📋 Recap"},{id:"awards",l:"🏆 Awards"}] },
-    { label: "🎲 Side Games", items: [{id:"killer",l:"⚔️ Killer"},{id:"minigames",l:"🎲 Mini Games"}] },
+    { label: "🏆 Tournament", items: [{id:"awards",l:"🏆 Awards"}] },
+    { label: "🎲 Side Games", items: [{id:"tournies",l:"Tournies"},{id:"minigames",l:"🎲 Mini Games"}] },
     { label: null,            items: [
-        ...(game?.tombola?.locked ? [{id:"tombola",l:"🎰 Tombola"}] : []),
+        {id:"tombola",l:"🎰 Tombola",...(tombolaShowBadge?{badge:true}:{})},
         ...(isAdmin ? [{id:"admin",l:"⚖️ Umersconi's Office",cls:"admin"}] : []),
       ]
     },
@@ -7656,7 +7755,7 @@ export default function App() {
                     {g.label&&<div className="nav-dd-label">{g.label}</div>}
                     {g.items.map(n=>(
                       <button key={n.id} className={`nav-dd-btn ${n.cls||""} ${view===n.id?"active":""}`} onClick={()=>{setView(n.id);setMenuOpen(false);}}>
-                        {n.l}
+                        {n.l}{n.badge&&<span className="nav-dot"/>}
                       </button>
                     ))}
                   </div>
