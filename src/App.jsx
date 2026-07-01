@@ -5615,7 +5615,7 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
         {k:"create",l:"Create Round"},
         {k:"actuals",l:"Enter Actuals"},
         {k:"resolve",l:"Resolve & Steals"},
-        {k:"late",l:`Late Requests${pendingLateCount>0?` (${pendingLateCount})`:""}`,},
+        {k:"late",l: pendingLateCount > 0 ? "Late Requests ("+pendingLateCount+")" : "Late Requests"},
       ];
 
   const cellStyle = {
