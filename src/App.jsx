@@ -7679,6 +7679,10 @@ export default function App() {
 
   const isAdmin = activeGameMeta?.adminId === session?.username;
 
+  // Red badge: must be computed before menuGroups references it
+  const tombolaDrawsUsed = ((game?.tombola?.draws || {})[session?.username] || []).length;
+  const tombolaShowBadge = !game?.tombola?.locked && tombolaDrawsUsed < 3;
+
   // Primary nav — always visible
   const primaryNav = [
     {id:"leaderboard", l:"Standings"},
@@ -7695,15 +7699,11 @@ export default function App() {
     { label: "🏆 Tournament", items: [{id:"awards",l:"🏆 Awards"}] },
     { label: "🎲 Side Games", items: [{id:"tournies",l:"Tournies"},{id:"minigames",l:"🎲 Mini Games"}] },
     { label: null,            items: [
-        {id:"tombola",l:"🎰 Tombola",...(tombolaShowBadge?{badge:true}:{})},
+        {id:"tombola",l:"🎰 Tombola",badge:tombolaShowBadge},
         ...(isAdmin ? [{id:"admin",l:"⚖️ Umersconi's Office",cls:"admin"}] : []),
       ]
     },
   ];
-
-  // Red badge: show while player still has draws remaining and tombola isn't locked
-  const tombolaDrawsUsed = ((game?.tombola?.draws || {})[session?.username] || []).length;
-  const tombolaShowBadge = !game?.tombola?.locked && tombolaDrawsUsed < 3;
 
   // Show Vendettas & BFFs survey modal when admin has unlocked it and player hasn't completed it
   const showRelSurvey = game?.relationshipsUnlocked && session?.username &&
