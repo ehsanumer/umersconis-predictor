@@ -3144,17 +3144,27 @@ function ChaosView({ game }) {
 // ─── KILLER VIEW ──────────────────────────────────────────────────────────────
 function KillerView({ game, dispatch, session }) {
   const [activeRound, setActiveRound] = useState(null);
-  const [draft, setDraft] = useState({});
-  const [starPred, setStarPred] = useState("");
-  const [worstPred, setWorstPred] = useState("");
+  // drafts is keyed by roundId so switching rounds never cross-contaminates inputs
+  const [drafts, setDrafts] = useState({});
   const [saved, setSaved] = useState(false);
   const [lateReason, setLateReason] = useState({});
   const [lateSubmitted, setLateSubmitted] = useState({});
 
+  function getDraft(roundId)         { return drafts[roundId] || {}; }
+  function setDraftField(roundId, field, val) {
+    setDrafts(p=>({...p,[roundId]:{...(p[roundId]||{}),[field]:val}}));
+  }
+
   function submitKillerPred(round) {
     const cats = round.categories||KILLER_STATS;
-    if (!cats.every(s=>(draft[s.id]??round.predictions?.[session.username]?.[s.id])!==undefined&&(draft[s.id]??round.predictions?.[session.username]?.[s.id])!=="")) return;
-    dispatch({type:"SET_KILLER_PREDICTION",roundId:round.id,player:session.username,preds:{...draft,__star:starPred||round.predictions?.[session.username]?.__star,__worst:worstPred||round.predictions?.[session.username]?.__worst}});
+    const d = getDraft(round.id);
+    const saved_ = round.predictions?.[session.username] || {};
+    if (!cats.every(s=>{const v=d[s.id]??saved_[s.id];return v!==undefined&&v!==""})) return;
+    dispatch({type:"SET_KILLER_PREDICTION",roundId:round.id,player:session.username,preds:{
+      ...saved_, ...d,
+      __star:  d.__star  || saved_.__star,
+      __worst: d.__worst || saved_.__worst,
+    }});
     setSaved(true); setTimeout(()=>setSaved(false),2000);
   }
 
@@ -3228,28 +3238,30 @@ function KillerView({ game, dispatch, session }) {
                     )}
 
                     {/* Normal prediction form — open when deadline hasn't passed OR late entry approved */}
-                    {canSubmit&&(
+                    {canSubmit&&(()=>{
+                      const d=getDraft(round.id);
+                      return (
                       <>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
                           {cats.map(stat=>(
                             <div key={stat.id} className="admin-field">
                               <label className="login-label" style={{color:"var(--silver)"}}>{stat.label}</label>
                               <input type="number" min="0" className="pred-input" placeholder="e.g. 45"
-                                value={draft[stat.id]??myPred?.[stat.id]??""} onChange={e=>setDraft(p=>({...p,[stat.id]:e.target.value}))} />
+                                value={d[stat.id]??myPred?.[stat.id]??""} onChange={e=>setDraftField(round.id,stat.id,e.target.value)} />
                             </div>
                           ))}
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12,borderTop:"1px solid rgba(201,168,76,0.2)",paddingTop:12}}>
                           <div className="admin-field">
                             <label className="login-label" style={{color:"var(--silver)"}}>⭐ Star Pick</label>
-                            <select className="pred-input" value={starPred||myPred?.__star||""} onChange={e=>setStarPred(e.target.value)}>
+                            <select className="pred-input" value={d.__star||myPred?.__star||""} onChange={e=>setDraftField(round.id,'__star',e.target.value)}>
                               <option value="">— Pick —</option>
                               {game.players.map(p=><option key={p} value={p}>{p}</option>)}
                             </select>
                           </div>
                           <div className="admin-field">
                             <label className="login-label" style={{color:"var(--silver)"}}>💩 Worst Pick</label>
-                            <select className="pred-input" value={worstPred||myPred?.__worst||""} onChange={e=>setWorstPred(e.target.value)}>
+                            <select className="pred-input" value={d.__worst||myPred?.__worst||""} onChange={e=>setDraftField(round.id,'__worst',e.target.value)}>
                               <option value="">— Pick —</option>
                               {game.players.map(p=><option key={p} value={p}>{p}</option>)}
                             </select>
@@ -3257,7 +3269,8 @@ function KillerView({ game, dispatch, session }) {
                         </div>
                         <div className="flex-end"><button className="btn btn-gold" onClick={()=>submitKillerPred(round)}>{saved?"✓ Saved":myPred?"Update":"Submit"}</button></div>
                       </>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
                 {round.resolved&&agg&&(
