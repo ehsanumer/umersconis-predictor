@@ -3322,7 +3322,7 @@ function KillerView({ game, dispatch, session }) {
                         <thead><tr style={{background:"var(--ink)",color:"var(--gold)"}}><th style={{padding:"6px 10px",textAlign:"left",fontFamily:"Oswald,sans-serif"}}>Stat</th>{game.players.map(p=><th key={p} style={{padding:"6px 10px",fontFamily:"Oswald,sans-serif"}}>{p}</th>)}</tr></thead>
                         <tbody>
                           {cats.map((stat,i)=>(
-                            <tr key={stat.id} style={{background:i%2===0?"var(--card-bg)":"white"}}>
+                            <tr key={stat.id} style={{background:i%2===0?"var(--card-bg)":"rgba(255,255,255,0.05)"}}>
                               <td style={{padding:"6px 10px",fontStyle:"italic"}}>{stat.label}</td>
                               {game.players.map(p=><td key={p} style={{padding:"6px 10px",textAlign:"center"}}>{round.predictions?.[p]?.[stat.id]??<span style={{color:"#ccc"}}>—</span>}</td>)}
                             </tr>
