@@ -3364,17 +3364,6 @@ function KillerView({ game, dispatch, session }) {
                         {round.worstPredAwards?.map((a,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">💩</div><div className="chaos-body"><div className="chaos-player">{a.player}</div><div className="chaos-reason">Correctly predicted Worst</div></div><div className="chaos-pts positive">+{a.pts}</div></div>)}
                       </div>
                     )}
-                    <div style={{marginTop:16,textAlign:"right"}}>
-                      <button className="btn btn-pitch" style={{fontSize:13}} onClick={()=>{
-                        const text=generateKillerShareText(round,game.players,cats);
-                        navigator.clipboard.writeText(text).then(()=>{
-                          setKillerCopied(p=>({...p,[round.id]:true}));
-                          setTimeout(()=>setKillerCopied(p=>({...p,[round.id]:false})),2500);
-                        });
-                      }}>
-                        {killerCopied[round.id]?"✓ Copied!":"📋 Copy WhatsApp Summary"}
-                      </button>
-                    </div>
                   </div>
                 )}
                 {deadlinePassed&&!round.resolved&&(
@@ -3393,6 +3382,19 @@ function KillerView({ game, dispatch, session }) {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+                {Object.keys(round.actuals||{}).length>0&&(
+                  <div style={{marginTop:12,textAlign:"right"}}>
+                    <button className="btn btn-pitch" style={{fontSize:13}} onClick={()=>{
+                      const text=generateKillerShareText(round,game.players,cats);
+                      navigator.clipboard.writeText(text).then(()=>{
+                        setKillerCopied(p=>({...p,[round.id]:true}));
+                        setTimeout(()=>setKillerCopied(p=>({...p,[round.id]:false})),2500);
+                      });
+                    }}>
+                      {killerCopied[round.id]?"✓ Copied!":"📋 Copy WhatsApp Summary"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -5538,6 +5540,7 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
   const [resolveId, setResolveId]     = useState("");
   const [steals, setSteals]           = useState({});
   const [houseSteals, setHouseSteals] = useState({});
+  const [adminShareCopied, setAdminShareCopied] = useState(false);
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const allMatchDays = autoGenerateMatchDays(game).map(g => {
@@ -5889,6 +5892,17 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
                   <span style={{fontSize:12,color:"var(--silver)",fontStyle:"italic",alignSelf:"center"}}>
                     {Object.values(round.matchStats||{}).filter(m=>m.fetched).length}/{roundMatches.length} fixtures fetched
                   </span>
+                )}
+                {round?.actuals&&Object.keys(round.actuals).length>0&&(
+                  <button className="btn btn-pitch" style={{fontSize:13}} onClick={()=>{
+                    const text=generateKillerShareText(round,game.players,round.categories||KILLER_STATS);
+                    navigator.clipboard.writeText(text).then(()=>{
+                      setAdminShareCopied(true);
+                      setTimeout(()=>setAdminShareCopied(false),2500);
+                    });
+                  }}>
+                    {adminShareCopied?"✓ Copied!":"📋 Copy WhatsApp Summary"}
+                  </button>
                 )}
                 <button className="btn btn-gold" onClick={saveActuals} disabled={Object.keys(computedActuals).length===0}>
                   Save Grand Totals as Actuals
