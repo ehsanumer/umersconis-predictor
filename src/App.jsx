@@ -1612,6 +1612,57 @@ export function calcKillerScores(game) {
   return scores;
 }
 
+export function generateKillerShareText(round, players, cats) {
+  const actuals = round.actuals || {};
+  const predictions = round.predictions || {};
+  const statList = cats || KILLER_STATS;
+
+  const lines = [`⚔️ KILLER – ${round.label}`, ``];
+
+  statList.forEach(stat => {
+    const actual = Number(actuals[stat.id]);
+    const qr = calcKillerQuestion(stat.id, players, predictions, actual);
+    lines.push(`📊 *${stat.label}*`);
+    lines.push(`Actual: ${actual}`);
+    if (qr) {
+      if (qr.houseWins) {
+        lines.push(`🏠 House wins — no one within ±10%`);
+      } else {
+        lines.push(`🏆 Winner: ${qr.winners.join(', ')}${qr.exact ? ' (EXACT!)' : ''}`);
+      }
+    }
+    players.forEach(p => {
+      const pred = predictions[p]?.[stat.id];
+      if (pred === undefined || pred === null || pred === '') { lines.push(`${p}: —`); return; }
+      const num = Number(pred);
+      const isWinner = qr?.winners?.includes(p);
+      const inTol = isWithinTolerance(num, actual);
+      const icon = isWinner ? '🏆' : inTol ? '✅' : '❌';
+      lines.push(`${icon} ${p}: ${pred}${isWinner && qr.exact ? ' (EXACT!)' : ''}`);
+    });
+    lines.push(``);
+  });
+
+  const agg = calcKillerAggregate(players, predictions, actuals, statList);
+  lines.push(`──────────────`);
+  lines.push(`📊 *Total Aggregates* (Actual: ${agg.actualAgg})`);
+  const sorted = [...players]
+    .map(p => ({ p, total: agg.playerAggs[p] || 0, dist: Math.abs((agg.playerAggs[p] || 0) - agg.actualAgg) }))
+    .sort((a, b) => a.dist - b.dist);
+  sorted.forEach(({ p, total, dist }) => {
+    const isStar = agg.star === p;
+    const isWorst = agg.worst === p;
+    const icon = isStar ? '⭐' : isWorst ? '💩' : '  ';
+    lines.push(`${icon} ${p}: ${total} (±${dist})`);
+  });
+
+  lines.push(``);
+  lines.push(`⭐ STAR PLAYER: ${agg.star || '—'}`);
+  lines.push(`💩 WORST PLAYER: ${agg.worst || '—'}`);
+
+  return lines.join('\n');
+}
+
 // ─── DEADLINE HELPERS ─────────────────────────────────────────────────────────
 export function getTournieDeadline(game) {
   if (game.tournieDeadline) return new Date(game.tournieDeadline);
@@ -3149,6 +3200,7 @@ function KillerView({ game, dispatch, session }) {
   const [saved, setSaved] = useState(false);
   const [lateReason, setLateReason] = useState({});
   const [lateSubmitted, setLateSubmitted] = useState({});
+  const [killerCopied, setKillerCopied] = useState({});
 
   function getDraft(roundId)         { return drafts[roundId] || {}; }
   function setDraftField(roundId, field, val) {
@@ -3312,6 +3364,17 @@ function KillerView({ game, dispatch, session }) {
                         {round.worstPredAwards?.map((a,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">💩</div><div className="chaos-body"><div className="chaos-player">{a.player}</div><div className="chaos-reason">Correctly predicted Worst</div></div><div className="chaos-pts positive">+{a.pts}</div></div>)}
                       </div>
                     )}
+                    <div style={{marginTop:16,textAlign:"right"}}>
+                      <button className="btn btn-pitch" style={{fontSize:13}} onClick={()=>{
+                        const text=generateKillerShareText(round,game.players,cats);
+                        navigator.clipboard.writeText(text).then(()=>{
+                          setKillerCopied(p=>({...p,[round.id]:true}));
+                          setTimeout(()=>setKillerCopied(p=>({...p,[round.id]:false})),2500);
+                        });
+                      }}>
+                        {killerCopied[round.id]?"✓ Copied!":"📋 Copy WhatsApp Summary"}
+                      </button>
+                    </div>
                   </div>
                 )}
                 {deadlinePassed&&!round.resolved&&(
