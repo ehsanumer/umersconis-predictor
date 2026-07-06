@@ -2606,13 +2606,16 @@ function MatchesView({ game, dispatch, session }) {
                                 setSubmitting(p=>({...p,[match.id]:{scoreHome:s.home,scoreAway:s.away,method:s.method,pensWinner:s.pensWinner,excuse:myPred.excuse||""}}));
                               }}>Edit</button>
                               {(()=>{
-                                if (deadlinePassed) return null;
                                 const bucket = getPowerPlayBucket(match);
                                 if (!bucket) return null;
                                 const usage = getPowerPlayUsage(game, myPlayer);
                                 const usedHere = !!myPred.powerPlay;
-                                const blockedByOther = usage[bucket] && usage[bucket]!==match.id;
                                 const stageLabel = POWERPLAY_STAGES.find(s=>s.id===bucket)?.label || bucket;
+                                if (deadlinePassed) {
+                                  if (!usedHere) return null;
+                                  return <span style={{fontSize:11,fontFamily:"Oswald,sans-serif",fontWeight:700,letterSpacing:1,color:"var(--red)",border:"1px solid var(--red)",padding:"2px 8px",borderRadius:3}}>⚡ POWERPLAY ON ({stageLabel})</span>;
+                                }
+                                const blockedByOther = usage[bucket] && usage[bucket]!==match.id;
                                 if (blockedByOther) {
                                   const otherMatch = (game.matches||[]).find(m=>m.id===usage[bucket]);
                                   return <span style={{fontSize:11,color:"var(--silver)",fontStyle:"italic"}}>⚡ {stageLabel} PowerPlay already used{otherMatch?` (${otherMatch.teams})`:""}</span>;
