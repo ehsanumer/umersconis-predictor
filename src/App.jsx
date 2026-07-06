@@ -1776,6 +1776,16 @@ export function gameReducer(state, action) {
         }
       };
     }
+    case "APPROVE_LATE_PRED": {
+      const mp = state.predictions[action.matchId] || {};
+      return { ...state, predictions: { ...state.predictions, [action.matchId]: { ...mp, [action.player]: { ...mp[action.player], lateApproved:true, lateReviewedAt:action.reviewedAt } } } };
+    }
+    case "REJECT_LATE_PRED": {
+      const mp = { ...(state.predictions[action.matchId] || {}) };
+      const rejected = mp[action.player];
+      delete mp[action.player];
+      return { ...state, predictions: { ...state.predictions, [action.matchId]: mp }, lateRejections: [...(state.lateRejections||[]), { matchId:action.matchId, player:action.player, prediction:rejected, rejectedAt:action.reviewedAt }] };
+    }
     case "ADD_UMERSCONI": return { ...state, umersconiAwards:[...(state.umersconiAwards||[]),{player:action.player,pts:action.pts,reason:action.reason,timestamp:new Date().toISOString()}] };
     case "ADD_INFINETINO": return { ...state, infinetinos:[...(state.infinetinos||[]),{player:action.player,pts:action.pts,reason:action.reason,timestamp:new Date().toISOString()}] };
     case "SET_TOURNIE_ANSWERS": return { ...state, tournamentAnswers:action.answers };
@@ -4807,6 +4817,7 @@ export function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGa
     {k:"tournie",l:"Tournie Setup"},
     {k:"killer",l:"⚔ Killer"},
     {k:"minigames",l:"🎲 Mini Games"},
+    {k:"late",l:"⏰ Late Subs"},
     {k:"preds",l:"Manual Preds"},
     {k:"players",l:"Players"},
     {k:"autopilot",l:"🤖 Autopilot"},
@@ -4832,6 +4843,7 @@ export function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGa
         {tab==="tournie"    && <TournieAdminTab game={game} dispatch={dispatch} />}
         {tab==="killer"     && <KillerAdminPanel game={game} dispatch={dispatch} session={session} />}
         {tab==="minigames"  && <MiniGamesAdmin game={game} dispatch={dispatch} session={session} />}
+        {tab==="late"       && <LateSubmissionsTab game={game} dispatch={dispatch} />}
         {tab==="preds"      && <ManualPredsTab game={game} dispatch={dispatch} />}
         {tab==="players"    && <PlayersTab game={game} gameId={gameId} dispatch={dispatch} session={session} />}
         {tab==="autopilot"  && <AutopilotPanel game={game} dispatch={dispatch} session={session} />}
@@ -4839,6 +4851,122 @@ export function AdminView({ game, gameId, gameMeta, dispatch, session, onLeaveGa
         {tab==="tombola"    && <TombolaAdminTab game={game} dispatch={dispatch} />}
         {tab==="api"        && <FixtureSync game={game} dispatch={dispatch} />}
       </div>
+    </div>
+  );
+}
+
+// ─── LATE SUBMISSIONS TAB ─────────────────────────────────────────────────────
+function LateSubmissionsTab({ game, dispatch }) {
+  const [filter, setFilter] = useState("pending");
+
+  // Collect all late predictions from predictions map
+  const allLate = [];
+  Object.entries(game.predictions || {}).forEach(([matchId, matchPreds]) => {
+    Object.entries(matchPreds || {}).forEach(([player, pred]) => {
+      if (pred?.late) {
+        const match = (game.matches || []).find(m => m.id === matchId);
+        allLate.push({ matchId, player, pred, match });
+      }
+    });
+  });
+  allLate.sort((a, b) => new Date(a.match?.kickoff || 0) - new Date(b.match?.kickoff || 0));
+
+  const pending  = allLate.filter(x => !x.pred.lateApproved);
+  const approved = allLate.filter(x => x.pred.lateApproved);
+  const rejected = (game.lateRejections || []).map(r => ({
+    ...r,
+    match: (game.matches || []).find(m => m.id === r.matchId),
+  })).sort((a, b) => new Date(a.match?.kickoff || 0) - new Date(b.match?.kickoff || 0));
+
+  const counts = { pending: pending.length, approved: approved.length, rejected: rejected.length };
+  const list = filter === "pending" ? pending : filter === "approved" ? approved : rejected;
+
+  const cell = { padding:"8px 12px", fontSize:13, borderBottom:"1px solid rgba(255,255,255,0.05)" };
+  const badge = (txt, col) => (
+    <span style={{fontSize:10,fontFamily:"Oswald,sans-serif",letterSpacing:1,padding:"2px 7px",borderRadius:2,background:col,color:"white"}}>{txt}</span>
+  );
+
+  function predResult(pred, match) {
+    if (!match?.result) return { icon:"⏳", label:"No result yet" };
+    const correct = pred.result === match.result;
+    const [ph, pa] = (pred.score || "").split("-");
+    const [ah, aa] = (match.score || "").split("-");
+    const exactScore = correct && ph === ah && pa === aa;
+    if (exactScore) return { icon:"🎯", label:"Correct score" };
+    if (correct)    return { icon:"✅", label:"Correct result" };
+    return           { icon:"❌", label:"Wrong" };
+  }
+
+  function renderRow(item, isRejected) {
+    const pred   = isRejected ? item.prediction : item.pred;
+    const match  = item.match;
+    const player = item.player;
+    const { icon, label } = predResult(pred, match);
+    const submittedAt = pred?.submittedAt ? new Date(pred.submittedAt).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "—";
+    const kickoff = match?.kickoff ? new Date(match.kickoff).toLocaleString("en-GB",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "—";
+    return (
+      <tr key={`${item.matchId}-${player}`} style={{background:"rgba(255,255,255,0.01)"}}>
+        <td style={{...cell,fontFamily:"Oswald,sans-serif",fontWeight:700,color:"var(--cream)"}}>{player}</td>
+        <td style={cell}>
+          <div style={{color:"var(--cream)",fontSize:13}}>{match?.teams || item.matchId}</div>
+          <div style={{color:"var(--silver)",fontSize:11}}>{kickoff}</div>
+        </td>
+        <td style={{...cell,textAlign:"center"}}>
+          <span style={{fontFamily:"Oswald,sans-serif",fontWeight:700,color:"var(--gold)"}}>{pred?.result} {pred?.score}</span>
+          {pred?.excuse && <div style={{fontSize:11,color:"var(--silver)",fontStyle:"italic"}}>"{pred.excuse}"</div>}
+        </td>
+        <td style={{...cell,textAlign:"center"}}>
+          {match?.result
+            ? <span style={{fontFamily:"Oswald,sans-serif",color:"var(--silver)"}}>{match.result} {match.score}</span>
+            : <span style={{color:"rgba(255,255,255,0.3)",fontSize:11}}>TBD</span>}
+        </td>
+        <td style={{...cell,textAlign:"center",fontSize:16}} title={label}>{icon}</td>
+        <td style={{...cell,fontSize:11,color:"var(--silver)"}}>{submittedAt}</td>
+        <td style={{...cell,textAlign:"right"}}>
+          {isRejected
+            ? badge("REJECTED","#7f8c8d")
+            : pred?.lateApproved
+              ? badge("APPROVED","#27ae60")
+              : (
+                <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+                  <button className="btn btn-sm btn-gold" onClick={()=>dispatch({type:"APPROVE_LATE_PRED",matchId:item.matchId,player,reviewedAt:new Date().toISOString()})}>✓ Approve</button>
+                  <button className="btn btn-sm btn-red" onClick={()=>{if(window.confirm(`Reject ${player}'s late prediction for ${match?.teams||item.matchId}? This will remove the prediction and reverse any points gained.`))dispatch({type:"REJECT_LATE_PRED",matchId:item.matchId,player,reviewedAt:new Date().toISOString()});}}>✕ Reject</button>
+                </div>
+              )
+          }
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <div style={{marginTop:16}}>
+      <div style={{display:"flex",gap:0,marginBottom:16,borderRadius:4,overflow:"hidden",border:"1px solid rgba(192,57,43,0.3)"}}>
+        {[["pending","⏳ Pending"],["approved","✓ Approved"],["rejected","✕ Rejected"]].map(([k,l])=>(
+          <button key={k} className={`tab ${filter===k?"active":""}`} style={filter===k?{color:"var(--red)",borderBottomColor:"var(--red)"}:{}} onClick={()=>setFilter(k)}>
+            {l}{counts[k]>0?` (${counts[k]})`:""}</button>
+        ))}
+      </div>
+
+      {list.length === 0
+        ? <div className="empty">No {filter} late submissions.</div>
+        : (
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"rgba(204,16,32,0.12)"}}>
+                  {["Player","Match","Prediction","Actual","✓?","Submitted","Action"].map(h=>(
+                    <th key={h} style={{padding:"8px 12px",textAlign:h==="Action"?"right":"left",fontFamily:"Oswald,sans-serif",fontSize:11,letterSpacing:1,color:"var(--silver)",borderBottom:"1px solid rgba(255,255,255,0.1)"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {list.map(item => renderRow(item, filter === "rejected"))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
     </div>
   );
 }
