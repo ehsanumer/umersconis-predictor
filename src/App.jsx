@@ -5902,32 +5902,36 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
           {(game.killerRounds||[]).length>0&&(
             <div style={{marginTop:20}}>
               <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>EXISTING ROUNDS</div>
-              {(game.killerRounds||[]).map(r=>(
-                <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #3a1515",gap:8}}>
-                  {editingRoundId===r.id ? (
-                    <>
-                      <input
-                        className="admin-input"
-                        style={{flex:1,fontSize:13,padding:"4px 8px"}}
-                        value={editingLabel}
-                        onChange={e=>setEditingLabel(e.target.value)}
-                        onKeyDown={e=>{
-                          if(e.key==="Enter"&&editingLabel.trim()){dispatch({type:"RENAME_KILLER_ROUND",roundId:r.id,label:editingLabel.trim()});setEditingRoundId(null);}
-                          if(e.key==="Escape")setEditingRoundId(null);
-                        }}
-                        autoFocus
-                      />
-                      <button className="btn btn-sm btn-gold" onClick={()=>{if(editingLabel.trim()){dispatch({type:"RENAME_KILLER_ROUND",roundId:r.id,label:editingLabel.trim()});setEditingRoundId(null);}}}>Save</button>
-                      <button className="btn btn-sm btn-pitch" onClick={()=>setEditingRoundId(null)}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{color:"var(--cream)",fontSize:13,flex:1,cursor:"pointer"}} onClick={()=>{setEditingRoundId(r.id);setEditingLabel(r.label);}} title="Click to rename">{r.label}</span>
-                      <span style={{color:r.resolved?"#27ae60":"var(--silver)",fontSize:11,flexShrink:0}}>{r.resolved?"✓ Resolved":"Pending"}</span>
-                    </>
-                  )}
-                </div>
-              ))}
+              {(game.killerRounds||[]).map(r=>{
+                const isEditing = editingRoundId===r.id;
+                return (
+                  <div key={r.id} style={{display:"flex",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #3a1515",gap:8}}>
+                    {isEditing ? (
+                      <>
+                        <input
+                          className="admin-input"
+                          style={{flex:1,fontSize:13,padding:"4px 8px"}}
+                          value={editingLabel}
+                          onChange={e=>setEditingLabel(e.target.value)}
+                          onKeyDown={e=>{
+                            if(e.key==="Enter"&&editingLabel.trim()){dispatch({type:"RENAME_KILLER_ROUND",roundId:r.id,label:editingLabel.trim()});setEditingRoundId(null);}
+                            if(e.key==="Escape"){setEditingRoundId(null);}
+                          }}
+                          autoFocus
+                        />
+                        <button className="btn btn-sm btn-gold" onClick={(e)=>{e.stopPropagation();if(editingLabel.trim()){dispatch({type:"RENAME_KILLER_ROUND",roundId:r.id,label:editingLabel.trim()});setEditingRoundId(null);}}}>Save</button>
+                        <button className="btn btn-sm btn-pitch" onClick={(e)=>{e.stopPropagation();setEditingRoundId(null);}}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{color:"var(--cream)",fontSize:13,flex:1}}>{r.label}</span>
+                        <span style={{color:r.resolved?"#27ae60":"var(--silver)",fontSize:11,flexShrink:0}}>{r.resolved?"✓ Resolved":"Pending"}</span>
+                        <button className="btn btn-sm btn-pitch" style={{flexShrink:0,fontSize:11,padding:"2px 8px"}} onClick={(e)=>{e.stopPropagation();setEditingRoundId(r.id);setEditingLabel(r.label);}}>✏ Rename</button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
