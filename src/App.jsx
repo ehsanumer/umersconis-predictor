@@ -1809,6 +1809,7 @@ export function gameReducer(state, action) {
       return action.actions.reduce((s, a) => gameReducer(s, a), state);
     }
     case "ADD_KILLER_ROUND": return { ...state, killerRounds:[...(state.killerRounds||[]),action.round] };
+    case "RENAME_KILLER_ROUND": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,label:action.label}:r) };
     case "SET_KILLER_PREDICTION": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,predictions:{...r.predictions,[action.player]:action.preds}}:r) };
     case "SET_KILLER_ACTUALS": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,actuals:action.actuals}:r) };
     case "SET_KILLER_MATCH_STATS": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,matchStats:{...(r.matchStats||{}),[action.matchId]:action.stats}}:r) };
@@ -5672,6 +5673,8 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
   const [steals, setSteals]           = useState({});
   const [houseSteals, setHouseSteals] = useState({});
   const [adminShareCopied, setAdminShareCopied] = useState(false);
+  const [editingRoundId, setEditingRoundId] = useState(null);
+  const [editingLabel, setEditingLabel] = useState("");
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const allMatchDays = autoGenerateMatchDays(game).map(g => {
@@ -5900,9 +5903,29 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
             <div style={{marginTop:20}}>
               <div style={{fontSize:11,fontFamily:"Oswald,sans-serif",letterSpacing:2,color:"var(--silver)",marginBottom:8}}>EXISTING ROUNDS</div>
               {(game.killerRounds||[]).map(r=>(
-                <div key={r.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #3a1515",color:"var(--cream)",fontSize:13}}>
-                  <span>{r.label}</span>
-                  <span style={{color:r.resolved?"#27ae60":"var(--silver)",fontSize:11}}>{r.resolved?"✓ Resolved":"Pending"}</span>
+                <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid #3a1515",gap:8}}>
+                  {editingRoundId===r.id ? (
+                    <>
+                      <input
+                        className="admin-input"
+                        style={{flex:1,fontSize:13,padding:"4px 8px"}}
+                        value={editingLabel}
+                        onChange={e=>setEditingLabel(e.target.value)}
+                        onKeyDown={e=>{
+                          if(e.key==="Enter"&&editingLabel.trim()){dispatch({type:"RENAME_KILLER_ROUND",roundId:r.id,label:editingLabel.trim()});setEditingRoundId(null);}
+                          if(e.key==="Escape")setEditingRoundId(null);
+                        }}
+                        autoFocus
+                      />
+                      <button className="btn btn-sm btn-gold" onClick={()=>{if(editingLabel.trim()){dispatch({type:"RENAME_KILLER_ROUND",roundId:r.id,label:editingLabel.trim()});setEditingRoundId(null);}}}>Save</button>
+                      <button className="btn btn-sm btn-pitch" onClick={()=>setEditingRoundId(null)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{color:"var(--cream)",fontSize:13,flex:1,cursor:"pointer"}} onClick={()=>{setEditingRoundId(r.id);setEditingLabel(r.label);}} title="Click to rename">{r.label}</span>
+                      <span style={{color:r.resolved?"#27ae60":"var(--silver)",fontSize:11,flexShrink:0}}>{r.resolved?"✓ Resolved":"Pending"}</span>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
