@@ -5675,6 +5675,8 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
   const [adminShareCopied, setAdminShareCopied] = useState(false);
   const [editingRoundId, setEditingRoundId] = useState(null);
   const [editingLabel, setEditingLabel] = useState("");
+  const [editingCell, setEditingCell] = useState(null); // {matchId, statId}
+  const [editingCellValue, setEditingCellValue] = useState("");
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const allMatchDays = autoGenerateMatchDays(game).map(g => {
@@ -6000,11 +6002,39 @@ function KillerAdminPanel({ game, dispatch, session, manualOnly }) {
                         return (
                           <tr key={m.id} style={{background:i%2===0?"rgba(255,255,255,0.02)":"transparent"}}>
                             <td style={{...cellStyle,textAlign:"left",color:"var(--cream)",fontWeight:700}}>{m.teams}</td>
-                            {roundStats.map(s=>(
-                              <td key={s.id} style={{...cellStyle,color:ms?.stats?.[s.id]!==undefined?"var(--cream)":"rgba(255,255,255,0.2)"}}>
-                                {ms?.stats?.[s.id]!==undefined ? ms.stats[s.id] : "—"}
-                              </td>
-                            ))}
+                            {roundStats.map(s=>{
+                              const cellKey = m.id+"__"+s.id;
+                              const isEditing = editingCell===cellKey;
+                              const val = ms?.stats?.[s.id];
+                              const saveCell = ()=>{
+                                const n = parseFloat(editingCellValue);
+                                if (!isNaN(n)) {
+                                  const existing = round.matchStats?.[m.id]||{};
+                                  dispatch({type:"SET_KILLER_MATCH_STATS",roundId:selId,matchId:m.id,stats:{...existing,stats:{...(existing.stats||{}),[s.id]:n}}});
+                                }
+                                setEditingCell(null);
+                              };
+                              return (
+                                <td key={s.id} style={{...cellStyle,padding:isEditing?"2px":cellStyle.padding,cursor:"pointer"}}
+                                  onClick={()=>{ if(!isEditing){setEditingCell(cellKey);setEditingCellValue(val!==undefined?String(val):"");} }}>
+                                  {isEditing ? (
+                                    <input
+                                      type="number" min="0"
+                                      style={{width:70,background:"rgba(255,255,255,0.1)",border:"1px solid var(--gold)",color:"var(--cream)",borderRadius:3,padding:"3px 6px",fontSize:12,textAlign:"center"}}
+                                      value={editingCellValue}
+                                      onChange={e=>setEditingCellValue(e.target.value)}
+                                      onKeyDown={e=>{if(e.key==="Enter")saveCell();if(e.key==="Escape")setEditingCell(null);}}
+                                      onBlur={saveCell}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span style={{color:val!==undefined?"var(--cream)":"rgba(255,255,255,0.25)"}} title="Click to edit">
+                                      {val!==undefined?val:"—"}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })}
                           </tr>
                         );
                       })}
