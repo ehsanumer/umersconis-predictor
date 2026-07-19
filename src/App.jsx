@@ -502,6 +502,7 @@ const KNOCKOUT_ROUNDS = [
 // if you're wrong. One play allowed per named stage across the tournament.
 const POWERPLAY_MULTIPLIER = 10;
 const POWERPLAY_PENALTY = -20;
+const HOUSE_PLAYER = "Umer";
 const POWERPLAY_STAGES = [
   { id: "group", label: "Group Stage" },
   { id: "r32",   label: "Round of 32" },
@@ -1603,7 +1604,7 @@ export function calcKillerScores(game) {
   (game.players||[]).forEach(p => { scores[p] = { gain:0, loss:0, net:0 }; });
   (game.killerRounds||[]).filter(r=>r.resolved).forEach(round => {
     (round.steals||[]).forEach(({winner,victim,pts}) => { if(scores[winner]) scores[winner].gain+=pts; if(scores[victim]) scores[victim].loss-=pts; });
-    (round.houseSteals||[]).forEach(({victim,pts}) => { if(scores[victim]) scores[victim].loss-=pts; });
+    (round.houseSteals||[]).forEach(({victim,pts}) => { if(scores[victim]) scores[victim].loss-=pts; if(scores[HOUSE_PLAYER]) scores[HOUSE_PLAYER].gain+=pts; });
     if (round.starBonus && scores[round.starBonus]) scores[round.starBonus].gain+=50;
     (round.starPredAwards||[]).forEach(({player,pts}) => { if(scores[player]) scores[player].gain+=pts; });
     (round.worstPredAwards||[]).forEach(({player,pts}) => { if(scores[player]) scores[player].gain+=pts; });
@@ -1626,7 +1627,7 @@ export function generateKillerShareText(round, players, cats) {
     lines.push(`Actual: ${actual}`);
     if (qr) {
       if (qr.houseWins) {
-        lines.push(`🏠 House wins — no one within ±10%`);
+        lines.push(`🏠 Umersconi wins — no one within ±10%`);
       } else {
         lines.push(`🏆 Winner: ${qr.winners.join(', ')}${qr.exact ? ' (EXACT!)' : ''}`);
       }
@@ -3372,7 +3373,7 @@ function KillerView({ game, dispatch, session }) {
                       <div style={{marginTop:14}}>
                         <div style={{fontFamily:"Oswald,sans-serif",letterSpacing:2,fontSize:12,color:"var(--silver)",marginBottom:8}}>POINT MOVEMENTS</div>
                         {round.steals?.map((s,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">⚔</div><div className="chaos-body"><div className="chaos-player">{s.winner} steals from {s.victim}</div><div className="chaos-reason">{cats.find(st=>st.id===s.question)?.label}{s.exact?" — EXACT!":""}</div></div><div className="chaos-pts positive">+{s.pts}</div></div>)}
-                        {round.houseSteals?.map((s,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">🏠</div><div className="chaos-body"><div className="chaos-player">House takes from {s.victim}</div><div className="chaos-reason">{s.allQuestions?"All questions failed":cats.find(st=>st.id===s.question)?.label}</div></div><div className="chaos-pts negative">−{s.pts}</div></div>)}
+                        {round.houseSteals?.map((s,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">🏠</div><div className="chaos-body"><div className="chaos-player">Umersconi takes from {s.victim}</div><div className="chaos-reason">{s.allQuestions?"All questions failed":cats.find(st=>st.id===s.question)?.label}</div></div><div className="chaos-pts negative">−{s.pts}</div></div>)}
                         {round.starBonus&&<div className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">⭐</div><div className="chaos-body"><div className="chaos-player">{round.starBonus}</div><div className="chaos-reason">Star performer bonus</div></div><div className="chaos-pts positive">+50</div></div>}
                         {round.starPredAwards?.map((a,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">⭐</div><div className="chaos-body"><div className="chaos-player">{a.player}</div><div className="chaos-reason">Correctly predicted Star</div></div><div className="chaos-pts positive">+{a.pts}</div></div>)}
                         {round.worstPredAwards?.map((a,i)=><div key={i} className="chaos-entry" style={{marginBottom:6}}><div className="chaos-icon">💩</div><div className="chaos-body"><div className="chaos-player">{a.player}</div><div className="chaos-reason">Correctly predicted Worst</div></div><div className="chaos-pts positive">+{a.pts}</div></div>)}
