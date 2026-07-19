@@ -1609,6 +1609,7 @@ export function calcKillerScores(game) {
     (round.starPredAwards||[]).forEach(({player,pts}) => { if(scores[player]) scores[player].gain+=pts; });
     (round.worstPredAwards||[]).forEach(({player,pts}) => { if(scores[player]) scores[player].gain+=pts; });
   });
+  (game.killerManualAwards||[]).forEach(({player,pts}) => { if(scores[player]) scores[player].gain+=pts; });
   (game.players||[]).forEach(p => { scores[p].net = scores[p].gain+scores[p].loss; });
   return scores;
 }
@@ -1818,6 +1819,7 @@ export function gameReducer(state, action) {
     case "REQUEST_KILLER_LATE": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,lateRequests:{...(r.lateRequests||{}),[action.player]:{reason:action.reason,requestedAt:action.requestedAt,status:"pending"}}}:r) };
     case "APPROVE_KILLER_LATE": return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,lateRequests:{...(r.lateRequests||{}),[action.player]:{...(r.lateRequests||{})[action.player],status:"approved",reviewedAt:action.reviewedAt}}}:r) };
     case "DENY_KILLER_LATE":    return { ...state, killerRounds:(state.killerRounds||[]).map(r=>r.id===action.roundId?{...r,lateRequests:{...(r.lateRequests||{}),[action.player]:{...(r.lateRequests||{})[action.player],status:"denied",reviewedAt:action.reviewedAt}}}:r) };
+    case "ADD_KILLER_MANUAL_AWARD": return { ...state, killerManualAwards:[...(state.killerManualAwards||[]), {player:action.player,pts:action.pts,reason:action.reason,awardedAt:action.awardedAt}] };
     case "ADD_PLAYER": return { ...state, players:[...(state.players||[]), action.player] };
     case "REMOVE_PLAYER": {
       const p = action.player;
